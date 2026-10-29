@@ -36,3 +36,34 @@ services:
       - nifi_data:/opt/nifi/nifi-current/state
     networks:
       - chu_network
+
+  spark-master:
+    image: apache/spark:3.5.1
+    container_name: chu_spark_master
+    restart: always
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
+    environment:
+      SPARK_MASTER_HOST: spark-master
+      SPARK_MASTER_PORT: "7077"
+      SPARK_MASTER_WEBUI_PORT: "8080"
+    ports:
+      - "8080:8080"
+      - "7077:7077"
+    networks:
+      - chu_network
+
+  spark-worker:
+    image: apache/spark:3.5.1
+    container_name: chu_spark_worker
+    restart: always
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
+    depends_on:
+      - spark-master
+    environment:
+      SPARK_WORKER_CORES: "2"
+      SPARK_WORKER_MEMORY: "2g"
+      SPARK_WORKER_WEBUI_PORT: "8081"
+    ports:
+      - "8081:8081"
+    networks:
+      - chu_network
