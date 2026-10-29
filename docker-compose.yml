@@ -1,0 +1,38 @@
+networks:
+  chu_network:
+    driver: bridge
+
+volumes:
+  postgres_data: {}
+  nifi_data: {}
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: chu_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: chu_admin
+      POSTGRES_PASSWORD: chu_password_2026
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres-init:/docker-entrypoint-initdb.d
+    networks:
+      - chu_network
+
+  nifi:
+    image: apache/nifi:1.25.0
+    container_name: chu_nifi
+    restart: always
+    ports:
+      - "8443:8443"
+    environment:
+      SINGLE_USER_CREDENTIALS_USERNAME: admin
+      SINGLE_USER_CREDENTIALS_PASSWORD: chu_password_2026
+      NIFI_WEB_PROXY_HOST: "192.168.74.129:8443"
+    volumes:
+      - nifi_data:/opt/nifi/nifi-current/state
+    networks:
+      - chu_network
