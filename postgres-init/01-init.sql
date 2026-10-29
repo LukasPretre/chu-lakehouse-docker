@@ -1,0 +1,5 @@
+CREATE DATABASE chu_s1_db;
+CREATE DATABASE chu_gold_db;
+
+GRANT ALL PRIVILEGES ON DATABASE chu_s1_db TO chu_admin;
+GRANT ALL PRIVILEGES ON DATABASE chu_gold_db TO chu_admin;

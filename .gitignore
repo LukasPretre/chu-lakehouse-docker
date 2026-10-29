@@ -1,0 +1,6 @@
+.venv/
+*.log
+*.env
+postgres_data/
+.DS_Store
+Thumbs.db

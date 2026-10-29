@@ -1,0 +1,23 @@
+version: '3.8'
+networks:
+  chu_networks:
+    driver: bridge
+
+volumes:
+  postgres_data
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: chu_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: chu_admin
+      POSTGRES_PASSWORD: chu_password_2026
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres-init:/docker-entrypoint-initdb.d
+    networks:
+      - chu_network
