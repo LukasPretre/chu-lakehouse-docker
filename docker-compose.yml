@@ -6,6 +6,8 @@ volumes:
   postgres_data: {}
   nifi_data: {}
   nifi_conf: {}
+  namenode_data: {}
+  datanode_data: {}
 
 services:
   postgres:
@@ -38,6 +40,7 @@ services:
       - nifi_conf:/opt/nifi/nifi-current/conf
       - ./data:/data
       - ./drivers:/opt/nifi/drivers:ro
+      - ./hadoop-conf:/opt/nifi/hadoop-conf:ro
     networks:
       - chu_network
 
@@ -57,6 +60,7 @@ services:
       - chu_network
     volumes:
       - ./data:/data
+      - ./jobs:/jobs:ro
 
   spark-worker:
     image: apache/spark:3.5.1
@@ -75,3 +79,43 @@ services:
       - chu_network
     volumes:
       - ./data:/data
+
+  namenode:
+    image: apache/hadoop:3.3.6
+    container_name: chu_namenode
+    hostname: namenode
+    networks:
+      - chu_network
+    user: root
+    command: ["hdfs", "namenode"]
+    mem_limit: 768m
+    environment:
+      ENSURE_NAMENODE_DIR: "/hadoop/dfs/name"
+      HADOOP_HEAPSIZE_MAX: "512m"
+      CORE-SITE.XML_fs.defaultFS: "hdfs://namenode:8020"
+      HDFS-SITE.XML_dfs.namenode.rpc-address: "namenode:8020"
+      HDFS-SITE.XML_dfs.namenode.name.dir: "/hadoop/dfs/name"
+      HDFS-SITE.XML_dfs.replication: "1"
+    ports:
+      - "9870:9870"
+    volumes:
+      - namenode_data:/hadoop/dfs/name
+
+  datanode:
+      image: apache/hadoop:3.3.6
+      container_name: chu_datanode
+      hostname: datanode
+      networks:
+        - chu_network
+      user: root
+      command: ["hdfs", "datanode"]
+      mem_limit: 512m
+      depends_on:
+        - namenode
+      environment:
+        HADOOP_HEAPSIZE_MAX: "256m"
+        CORE-SITE.XML_fs.defaultFS: "hdfs://namenode:8020"
+        HDFS-SITE.XML_dfs.datanode.data.dir: "/hadoop/dfs/data"
+        HDFS-SITE.XML_dfs.replication: "1"
+      volumes:
+        - datanode_data:/hadoop/dfs/data
