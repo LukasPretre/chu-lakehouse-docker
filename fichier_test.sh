@@ -17,6 +17,9 @@ PG_CONTAINER=${PG_CONTAINER:-chu_postgres}
 NIFI_CONTAINER=${NIFI_CONTAINER:-chu_nifi}
 SPARK_MASTER_CONTAINER=${SPARK_MASTER_CONTAINER:-chu_spark_master}
 SPARK_WORKER_CONTAINER=${SPARK_WORKER_CONTAINER:-chu_spark_worker}
+NAMENODE_CONTAINER=${NAMENODE_CONTAINER:-chu_namenode}
+DATANODE_CONTAINER=${DATANODE_CONTAINER:-chu_datanode}
+HIVE_CONTAINER=${HIVE_CONTAINER:-chu_hive_metastore}
 
 PG_USER=${PG_USER:-chu_admin}
 PG_PASSWORD=${PG_PASSWORD:-}
@@ -144,9 +147,34 @@ EOF
   run_pyspark "$f" JDBC_OK --packages org.postgresql:postgresql:42.7.3 --conf spark.jars.ivy=/tmp/.ivy2
 }
 
+# ---------- FONCTIONS HDFS / HIVE ----------
+hdfs_datanodes() { docker exec "$NAMENODE_CONTAINER" hdfs dfsadmin -report 2>/dev/null | grep -Eq "Live datanodes \([1-9]"; }
+
+hdfs_rw() {
+  echo smoke_ok | docker exec -i "$NAMENODE_CONTAINER" hdfs dfs -put -f - /bronze/_smoke_test.txt >/dev/null 2>&1 || return 1
+  local r; r=$(docker exec "$NAMENODE_CONTAINER" hdfs dfs -cat /bronze/_smoke_test.txt 2>/dev/null)
+  docker exec "$NAMENODE_CONTAINER" hdfs dfs -rm -f /bronze/_smoke_test.txt >/dev/null 2>&1
+  [ "$r" = "smoke_ok" ]
+}
+
+# Spark crée puis relit une table Hive (script jobs/hive_smoke.py monté dans /jobs)
+hive_smoke() {
+  timeout 300 docker exec "$SPARK_MASTER_CONTAINER" /opt/spark/bin/spark-submit \
+    --master "$SPARK_MASTER_URL" /jobs/hive_smoke.py 2>&1 | grep -q "HIVE_SMOKE lignes = 10"
+}
+
+# Comptes Bronze = source (script jobs/check_bronze.py monté dans /jobs)
+bronze_counts() {
+  local out
+  out=$(timeout 300 docker exec "$SPARK_MASTER_CONTAINER" /opt/spark/bin/spark-submit \
+        --master "$SPARK_MASTER_URL" /jobs/check_bronze.py 2>&1 | grep "^BRONZE")
+  [ -n "$out" ] && ! echo "$out" | grep -q -E "ECART|ABSENT"
+}
+
 # ---------- EXÉCUTION ----------
 echo "== 1. Conteneurs =="
-for c in "$PG_CONTAINER" "$NIFI_CONTAINER" "$SPARK_MASTER_CONTAINER" "$SPARK_WORKER_CONTAINER"; do
+for c in "$PG_CONTAINER" "$NIFI_CONTAINER" "$SPARK_MASTER_CONTAINER" "$SPARK_WORKER_CONTAINER" \
+         "$NAMENODE_CONTAINER" "$DATANODE_CONTAINER" "$HIVE_CONTAINER"; do
   check "conteneur $c démarré" running "$c"
 done
 
@@ -179,6 +207,31 @@ if docker exec "$SPARK_MASTER_CONTAINER" which python3 >/dev/null 2>&1; then
   fi
 else
   skip "PySpark absent de l'image Spark (utiliser une image avec Python, par exemple le tag -python3)"
+fi
+
+echo "== 5. HDFS =="
+check "HDFS : au moins un datanode actif" hdfs_datanodes
+check "HDFS : écriture puis relecture d'un fichier" hdfs_rw
+check "NiFi atteint le namenode (namenode:8020)" tcp_from "$NIFI_CONTAINER" namenode 8020
+check "NiFi voit la configuration Hadoop" docker exec "$NIFI_CONTAINER" test -f /opt/nifi/hadoop-conf/core-site.xml
+check "Spark atteint le namenode (namenode:8020)" tcp_from "$SPARK_MASTER_CONTAINER" namenode 8020
+for t in Diagnostic Specialites Patient Professionnel_de_sante Consultation; do
+  check "Bronze S1 présent dans HDFS : $t" docker exec "$NAMENODE_CONTAINER" hdfs dfs -test -d "/bronze/s1/$t"
+done
+
+echo "== 6. Hive Metastore =="
+check "Spark atteint le metastore (hive-metastore:9083)" tcp_from "$SPARK_MASTER_CONTAINER" hive-metastore 9083
+if [ "${SMOKE_HIVE:-0}" = "1" ]; then
+  check "Hive : Spark crée et relit une table sur HDFS" hive_smoke
+else
+  skip "test Hive complet : lancer avec SMOKE_HIVE=1"
+fi
+
+echo "== 7. Qualité des données =="
+if [ "${SMOKE_COUNTS:-0}" = "1" ]; then
+  check "Bronze = source (5 tables, comptes identiques)" bronze_counts
+else
+  skip "comptes Bronze = source : lancer avec SMOKE_COUNTS=1"
 fi
 
 # Pour les prochains outils, ajouter ici un bloc de test :
