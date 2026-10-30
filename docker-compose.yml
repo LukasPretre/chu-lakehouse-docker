@@ -12,8 +12,8 @@ services:
     container_name: chu_postgres
     restart: always
     environment:
-      POSTGRES_USER: chu_admin
-      POSTGRES_PASSWORD: chu_password_2026
+      POSTGRES_USER: "${PG_USER}"
+      POSTGRES_PASSWORD: "${PG_PASSWORD}"
     ports:
       - "5432:5432"
     volumes:
@@ -29,9 +29,9 @@ services:
     ports:
       - "8443:8443"
     environment:
-      SINGLE_USER_CREDENTIALS_USERNAME: admin
-      SINGLE_USER_CREDENTIALS_PASSWORD: chu_password_2026
-      NIFI_WEB_PROXY_HOST: "192.168.74.129:8443"
+      SINGLE_USER_CREDENTIALS_USERNAME: "${NIFI_USER}"
+      SINGLE_USER_CREDENTIALS_PASSWORD: "${NIFI_PASSWORD}"
+      NIFI_WEB_PROXY_HOST: "${HOST_IP}:8443"
     volumes:
       - nifi_data:/opt/nifi/nifi-current/state
     networks:
