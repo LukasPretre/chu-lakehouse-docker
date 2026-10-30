@@ -5,6 +5,7 @@ networks:
 volumes:
   postgres_data: {}
   nifi_data: {}
+  nifi_conf: {}
 
 services:
   postgres:
@@ -34,6 +35,9 @@ services:
       NIFI_WEB_PROXY_HOST: "${HOST_IP}:8443"
     volumes:
       - nifi_data:/opt/nifi/nifi-current/state
+      - nifi_conf:/opt/nifi/nifi-current/conf
+      - ./data:/data
+      - ./drivers:/opt/nifi/drivers:ro
     networks:
       - chu_network
 
@@ -51,6 +55,8 @@ services:
       - "7077:7077"
     networks:
       - chu_network
+    volumes:
+      - ./data:/data
 
   spark-worker:
     image: apache/spark:3.5.1
@@ -67,3 +73,5 @@ services:
       - "8081:8081"
     networks:
       - chu_network
+    volumes:
+      - ./data:/data

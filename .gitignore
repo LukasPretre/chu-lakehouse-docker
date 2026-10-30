@@ -5,3 +5,6 @@ postgres_data/
 .DS_Store
 Thumbs.db
 .env
+data/
+drivers/*.jar
+.env
