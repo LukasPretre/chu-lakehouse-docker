@@ -148,8 +148,30 @@ fi
 
 # ---------------------------------------------------------------- 5. Pile complète
 etape "5. Démarrage de toute la pile"
+# Le Metastore Hive initialise son schéma à chaque démarrage sauf si IS_RESUME=true
+# (docker-compose.yml : IS_RESUME: "${HIVE_IS_RESUME:-true}"). Première fois : false,
+# puis on le recrée avec true, sinon il échoue au premier redémarrage du conteneur.
+schema_hive_present() {
+  [ "$(docker exec "$PG_CONTAINER" psql -U "$PG_USER" -d metastore -tAc \
+      "SELECT 1 FROM information_schema.tables WHERE table_name='BUCKETING_COLS'" 2>/dev/null)" = "1" ]
+}
+INIT_HIVE=0
+if schema_hive_present; then
+  export HIVE_IS_RESUME=true
+  ok "schéma du Metastore déjà présent"
+else
+  export HIVE_IS_RESUME=false
+  INIT_HIVE=1
+  info "schéma du Metastore à créer au premier démarrage"
+fi
 docker compose up -d >/dev/null 2>&1 || fail "docker compose up -d a échoué (voir : docker compose config)"
 ok "conteneurs lancés"
+if [ "$INIT_HIVE" = "1" ]; then
+  attendre "schéma du Metastore créé" 240 schema_hive_present
+  export HIVE_IS_RESUME=true
+  docker compose up -d hive-metastore >/dev/null 2>&1 || fail "relance du Metastore impossible"
+  ok "Metastore relancé en mode normal (IS_RESUME=true)"
+fi
 attendre "datanode HDFS enregistré" 180 hdfs_ok
 timeout 120 docker exec "$NN_CONTAINER" hdfs dfsadmin -safemode wait >/dev/null 2>&1 || avert "namenode encore en mode sécurisé"
 docker exec "$NN_CONTAINER" hdfs dfs -mkdir -p /bronze /silver /warehouse >/dev/null
@@ -186,5 +208,5 @@ cat <<EOF
      ouvrir le service DBCPConnectionPool, ressaisir PG_PASSWORD, l'activer,
      puis faire « Run Once » sur chaque GenerateFlowFile.
   2. Silver de la source S1 : ./run_silver_s1.sh
-  3. Contrôle de la pile : SMOKE_HIVE=1 SMOKE_COUNTS=1 ./fichier_test.sh
+  3. Contrôle de la pile : SMOKE_COUNTS=1 ./fichier_test.sh
 EOF
