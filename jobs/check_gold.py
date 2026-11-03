@@ -77,12 +77,17 @@ def resultat(ok, message):
     print(f"GOLDTEST|{'OK' if ok else 'ECHEC'}|{message}")
 
 
+try:
+    bases = [b.name for b in spark.catalog.listDatabases()]
+except Exception as erreur:
+    resultat(False, "Metastore Hive inaccessible depuis Spark : " + str(erreur).strip().splitlines()[0][:200])
+    spark.stop()
+    sys.exit(1)
+
+
 def table(nom):
-    try:
-        if spark.catalog.tableExists(f"{GOLD_DB}.{nom}"):
-            return spark.table(f"{GOLD_DB}.{nom}").cache()
-    except Exception:
-        pass
+    if GOLD_DB in bases and spark.catalog.tableExists(f"{GOLD_DB}.{nom}"):
+        return spark.table(f"{GOLD_DB}.{nom}").cache()
     return None
 
 
