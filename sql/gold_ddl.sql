@@ -106,3 +106,37 @@ CREATE TABLE dim_etablissement (
 -- Une seule version courante par établissement (règle du SCD2).
 CREATE UNIQUE INDEX uq_etablissement_courant
     ON dim_etablissement (identifiant_organisation) WHERE est_courant;
+
+-- ---------------------------------------------------------------- DIM_PATIENT
+CREATE TABLE dim_patient (
+    id_patient       INTEGER   PRIMARY KEY,
+    patient_pseudo   CHAR(64)  NOT NULL UNIQUE,   -- HMAC-SHA256, aucune donnée nominative
+    sexe             CHAR(1)   NOT NULL,          -- F, M ou I (autre ou vide)
+    annee_naissance  SMALLINT,
+    run_id           VARCHAR(40),
+    date_chargement  TIMESTAMP NOT NULL DEFAULT now(),
+    CONSTRAINT ck_patient_sexe CHECK (sexe IN ('F', 'M', 'I')),
+    CONSTRAINT ck_patient_annee CHECK (annee_naissance BETWEEN 1880 AND 2100)
+);
+
+-- ---------------------------------------------------------------- DIM_PROFESSIONNEL
+CREATE TABLE dim_professionnel (
+    id_professionnel           INTEGER      PRIMARY KEY,
+    identifiant_pseudo         CHAR(64)     NOT NULL UNIQUE,   -- HMAC-SHA256 ; nom et prénom exclus
+    type_identifiant           VARCHAR(10),
+    categorie_professionnelle  VARCHAR(30),
+    profession                 VARCHAR(60),                    -- « Non renseigné » si vide
+    fonction                   VARCHAR(30),
+    specialite                 VARCHAR(80),
+    run_id                     VARCHAR(40),
+    date_chargement            TIMESTAMP    NOT NULL DEFAULT now()
+);
+
+-- ---------------------------------------------------------------- DIM_DIAGNOSTIC
+CREATE TABLE dim_diagnostic (
+    id_diagnostic       INTEGER       PRIMARY KEY,
+    code_diagnostic     VARCHAR(10)   NOT NULL UNIQUE,
+    libelle_diagnostic  VARCHAR(255)  NOT NULL,
+    run_id              VARCHAR(40),
+    date_chargement     TIMESTAMP     NOT NULL DEFAULT now()
+);
