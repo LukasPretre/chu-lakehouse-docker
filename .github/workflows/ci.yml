@@ -50,6 +50,15 @@ jobs:
       - name: Tests Silver
         run: ./test_silver.sh
 
+      - name: Fait consultation J30 (mode test, dimensions provisoires)
+        run: |
+          docker exec -e J30_MODE=test chu_spark_master /opt/spark/bin/spark-submit \
+            --master spark://spark-master:7077 /jobs/j30_fait_consultation.py 2>&1 \
+            | tee /tmp/j30.log | grep -E '^GOLD'
+          grep -q '^GOLDQC,perte_silver_fait,0$' /tmp/j30.log
+          grep -q '^GOLDQC,doublons_id_consultation,0$' /tmp/j30.log
+          grep -q '^GOLD fait_consultation ' /tmp/j30.log
+
       - name: Tests Gold (DDL, contraintes, jobs Gold, contenu Hive)
         run: ./test_gold.sh
         env:
