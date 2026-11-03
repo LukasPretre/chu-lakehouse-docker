@@ -140,3 +140,168 @@ CREATE TABLE dim_diagnostic (
     run_id              VARCHAR(40),
     date_chargement     TIMESTAMP     NOT NULL DEFAULT now()
 );
+
+-- =============================================================================
+-- FAITS
+-- Toutes les clés étrangères sont NOT NULL (§3.6) : une référence introuvable
+-- pointe vers la ligne -1 de la dimension.
+-- =============================================================================
+
+-- ---------------------------------------------------------------- FAIT_CONSULTATION
+-- Grain : une consultation (environ 1,03 million de lignes).
+CREATE TABLE fait_consultation (
+    id_consultation   INTEGER   PRIMARY KEY,   -- Num_consultation (clé dégénérée)
+    id_date           INTEGER   NOT NULL REFERENCES dim_temps (id_date),
+    id_patient        INTEGER   NOT NULL REFERENCES dim_patient (id_patient),
+    id_professionnel  INTEGER   NOT NULL REFERENCES dim_professionnel (id_professionnel),
+    id_diagnostic     INTEGER   NOT NULL REFERENCES dim_diagnostic (id_diagnostic),
+    id_etablissement  INTEGER   NOT NULL REFERENCES dim_etablissement (id_etablissement),
+    heure_debut       TIME,
+    heure_fin         TIME,
+    duree_minutes     SMALLINT,                -- fin - début, + 1440 au passage de minuit
+    nb_consultations  SMALLINT  NOT NULL DEFAULT 1,
+    run_id            VARCHAR(40),
+    date_chargement   TIMESTAMP NOT NULL DEFAULT now(),
+    CONSTRAINT ck_consultation_duree CHECK (duree_minutes BETWEEN 0 AND 1440),
+    CONSTRAINT ck_consultation_nb CHECK (nb_consultations = 1)
+);
+
+-- ---------------------------------------------------------------- FAIT_HOSPITALISATION
+-- Grain : un séjour. dim_temps joue deux rôles (entrée et sortie).
+CREATE TABLE fait_hospitalisation (
+    id_hospitalisation   VARCHAR(20)  PRIMARY KEY,   -- Num_Hospitalisation (clé dégénérée)
+    id_date_entree       INTEGER      NOT NULL REFERENCES dim_temps (id_date),
+    id_date_sortie       INTEGER      NOT NULL REFERENCES dim_temps (id_date),  -- -1 si durée inconnue
+    id_patient           INTEGER      NOT NULL REFERENCES dim_patient (id_patient),
+    id_etablissement     INTEGER      NOT NULL REFERENCES dim_etablissement (id_etablissement),
+    id_diagnostic        INTEGER      NOT NULL REFERENCES dim_diagnostic (id_diagnostic),
+    duree_sejour_jours   SMALLINT,
+    nb_hospitalisations  SMALLINT     NOT NULL DEFAULT 1,
+    run_id               VARCHAR(40),
+    date_chargement      TIMESTAMP    NOT NULL DEFAULT now(),
+    CONSTRAINT ck_hospitalisation_duree CHECK (duree_sejour_jours >= 0),
+    CONSTRAINT ck_hospitalisation_nb CHECK (nb_hospitalisations = 1),
+    -- Les clés AAAAMMJJ se comparent dans l'ordre chronologique.
+    CONSTRAINT ck_hospitalisation_dates CHECK (id_date_sortie = -1 OR id_date_sortie >= id_date_entree)
+);
+
+-- ---------------------------------------------------------------- FAIT_DECES
+-- Grain : un décès du fichier INSEE. Jamais relié aux patients du CHU (RGPD).
+CREATE TABLE fait_deces (
+    id_deces         INTEGER     PRIMARY KEY,
+    id_date          INTEGER     NOT NULL REFERENCES dim_temps (id_date),
+    id_region        INTEGER     NOT NULL REFERENCES dim_region (id_region),  -- région du lieu de décès
+    sexe             CHAR(1)     NOT NULL,
+    tranche_age      VARCHAR(7),                                             -- 0-4, 5-9, ..., 95+
+    nb_deces         SMALLINT    NOT NULL DEFAULT 1,
+    run_id           VARCHAR(40),
+    date_chargement  TIMESTAMP   NOT NULL DEFAULT now(),
+    CONSTRAINT ck_deces_sexe CHECK (sexe IN ('F', 'M', 'I')),
+    CONSTRAINT ck_deces_nb CHECK (nb_deces = 1)
+);
+
+-- ---------------------------------------------------------------- FAIT_SATISFACTION
+-- Grain : un établissement x une année x un type d'enquête.
+-- Scores non additifs : moyenne pondérée par nb_reponses, calculée dans Superset.
+CREATE TABLE fait_satisfaction (
+    id_satisfaction      INTEGER       PRIMARY KEY,
+    id_date              INTEGER       NOT NULL REFERENCES dim_temps (id_date),  -- 1er janvier de l'année de campagne
+    id_etablissement     INTEGER       NOT NULL REFERENCES dim_etablissement (id_etablissement),
+    type_enquete         VARCHAR(3)    NOT NULL,   -- 48H ou CA
+    classement           VARCHAR(2),
+    evolution            VARCHAR(30),
+    nb_reponses          INTEGER,
+    score_global         DECIMAL(5,2),
+    score_accueil        DECIMAL(5,2),
+    score_pec_infirmier  DECIMAL(5,2),             -- enquête 48H seulement
+    score_pec_medical    DECIMAL(5,2),             -- enquête 48H seulement
+    score_chambre        DECIMAL(5,2),
+    score_repas          DECIMAL(5,2),             -- enquête 48H seulement
+    score_sortie         DECIMAL(5,2),
+    taux_recommandation  DECIMAL(5,2),             -- NULL en 2017
+    run_id               VARCHAR(40),
+    date_chargement      TIMESTAMP     NOT NULL DEFAULT now(),
+    CONSTRAINT ck_satisfaction_type CHECK (type_enquete IN ('48H', 'CA')),
+    CONSTRAINT ck_satisfaction_classement CHECK (classement IN ('A', 'B', 'C', 'D', 'DI', 'NV', 'NR')),
+    CONSTRAINT ck_satisfaction_reponses CHECK (nb_reponses >= 0),
+    CONSTRAINT ck_satisfaction_scores CHECK (
+            score_global        BETWEEN 0 AND 100
+        AND score_accueil       BETWEEN 0 AND 100
+        AND score_pec_infirmier BETWEEN 0 AND 100
+        AND score_pec_medical   BETWEEN 0 AND 100
+        AND score_chambre       BETWEEN 0 AND 100
+        AND score_repas         BETWEEN 0 AND 100
+        AND score_sortie        BETWEEN 0 AND 100
+        AND taux_recommandation BETWEEN 0 AND 100)
+);
+-- Une mesure par établissement, année et type d'enquête. Index partiel : plusieurs
+-- établissements non résolus (-1) peuvent exister pour la même année et la même enquête.
+CREATE UNIQUE INDEX uq_satisfaction_mesure
+    ON fait_satisfaction (id_date, id_etablissement, type_enquete)
+    WHERE id_etablissement <> -1;
+
+
+-- =============================================================================
+-- DESCRIPTIONS (visibles avec \d+ dans psql et dans Superset)
+-- =============================================================================
+COMMENT ON TABLE dim_temps            IS 'Calendrier 1970-2030, un jour par ligne, jours fériés français (J20)';
+COMMENT ON TABLE dim_region           IS 'Régions INSEE actuelles, plus Étranger et Inconnu';
+COMMENT ON TABLE dim_etablissement    IS 'Établissements de santé, historisés en SCD2 dans PostgreSQL (J22)';
+COMMENT ON TABLE dim_patient          IS 'Patients pseudonymisés (HMAC-SHA256), sans donnée nominative (J25)';
+COMMENT ON TABLE dim_professionnel    IS 'Professionnels de santé pseudonymisés, nom et prénom exclus (J23)';
+COMMENT ON TABLE dim_diagnostic       IS 'Référentiel des diagnostics (J24)';
+COMMENT ON TABLE fait_consultation    IS 'Une ligne par consultation (J30)';
+COMMENT ON TABLE fait_hospitalisation IS 'Une ligne par séjour hospitalier (J31)';
+COMMENT ON TABLE fait_deces           IS 'Une ligne par décès INSEE, jamais relié aux patients (J32)';
+COMMENT ON TABLE fait_satisfaction    IS 'Une ligne par établissement, année et type d''enquête e-Satis (J33)';
+
+
+-- =============================================================================
+-- DONNÉES D'INITIALISATION
+-- =============================================================================
+
+-- Lignes -1 « Inconnu ». Les régions passent en premier : dim_etablissement y fait référence.
+INSERT INTO dim_region (id_region, code_region_insee, libelle_region, run_id) VALUES
+    (-1, 'ZZ', 'Inconnu', 'init');
+
+INSERT INTO dim_temps (id_date, date_complete, jour, jour_semaine, semaine_iso,
+                       mois, libelle_mois, trimestre, annee, est_ferie, run_id) VALUES
+    (-1, DATE '1900-01-01', 0, 'Inconnu', 0, 0, 'Inconnu', 0, 0, FALSE, 'init');
+
+INSERT INTO dim_etablissement (id_etablissement, identifiant_organisation, raison_sociale,
+                               code_postal, id_region, date_debut, run_id) VALUES
+    (-1, 'INCONNU', 'Inconnu', 'Inconnu', -1, DATE '1900-01-01', 'init');
+
+INSERT INTO dim_patient (id_patient, patient_pseudo, sexe, annee_naissance, run_id) VALUES
+    (-1, 'INCONNU', 'I', NULL, 'init');
+
+INSERT INTO dim_professionnel (id_professionnel, identifiant_pseudo, type_identifiant,
+                               categorie_professionnelle, profession, fonction, specialite, run_id) VALUES
+    (-1, 'INCONNU', 'Inconnu', 'Inconnu', 'Inconnu', 'Inconnu', 'Inconnu', 'init');
+
+INSERT INTO dim_diagnostic (id_diagnostic, code_diagnostic, libelle_diagnostic, run_id) VALUES
+    (-1, 'INCONNU', 'Inconnu', 'init');
+
+-- Référentiel des régions (COG INSEE, découpage en vigueur depuis 2016).
+INSERT INTO dim_region (id_region, code_region_insee, libelle_region, run_id) VALUES
+    ( 1, '01', 'Guadeloupe',                 'init'),
+    ( 2, '02', 'Martinique',                 'init'),
+    ( 3, '03', 'Guyane',                     'init'),
+    ( 4, '04', 'La Réunion',                 'init'),
+    ( 6, '06', 'Mayotte',                    'init'),
+    (11, '11', 'Île-de-France',              'init'),
+    (24, '24', 'Centre-Val de Loire',        'init'),
+    (27, '27', 'Bourgogne-Franche-Comté',    'init'),
+    (28, '28', 'Normandie',                  'init'),
+    (32, '32', 'Hauts-de-France',            'init'),
+    (44, '44', 'Grand Est',                  'init'),
+    (52, '52', 'Pays de la Loire',           'init'),
+    (53, '53', 'Bretagne',                   'init'),
+    (75, '75', 'Nouvelle-Aquitaine',         'init'),
+    (76, '76', 'Occitanie',                  'init'),
+    (84, '84', 'Auvergne-Rhône-Alpes',       'init'),
+    (93, '93', 'Provence-Alpes-Côte d''Azur', 'init'),
+    (94, '94', 'Corse',                      'init'),
+    (99, '99', 'Étranger',                   'init');
+
+COMMIT;
