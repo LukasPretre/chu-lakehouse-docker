@@ -167,8 +167,12 @@ for nom in presentes if PG_COLONNES else []:
     if nom not in PG_COLONNES:
         resultat(False, f"{nom} : table absente de PostgreSQL (rejouer sql/gold_ddl.sql)")
         continue
-    hive = set(tables[nom].columns)
+
+    # Les colonnes de partition Hive (annee de J30) ne sont pas copiées par J34 : elles ne comptent pas.
+    partitions = {c.name for c in spark.catalog.listColumns(f"{GOLD_DB}.{nom}") if c.isPartition}
+    hive = set(tables[nom].columns) - partitions
     en_trop = sorted(hive - set(PG_COLONNES[nom]))
+    
     manquantes = sorted(c for c, obligatoire in PG_COLONNES[nom].items() if obligatoire and c not in hive)
     detail = "".join([f" ; absentes de PostgreSQL : {', '.join(en_trop)}" if en_trop else "",
                       f" ; obligatoires non produites : {', '.join(manquantes)}" if manquantes else ""])
