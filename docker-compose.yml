@@ -138,6 +138,7 @@ services:
         -Djavax.jdo.option.ConnectionUserName=${PG_USER}
         -Djavax.jdo.option.ConnectionPassword=${PG_PASSWORD}
         -Dhive.metastore.warehouse.dir=hdfs://namenode:8020/warehouse
+      IS_RESUME: "${HIVE_IS_RESUME:-true}"
     ports:
       - "9083:9083"
     networks:
