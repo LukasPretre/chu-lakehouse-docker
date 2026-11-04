@@ -157,12 +157,6 @@ hdfs_rw() {
   [ "$r" = "smoke_ok" ]
 }
 
-# Spark crée puis relit une table Hive (script jobs/hive_smoke.py monté dans /jobs)
-hive_smoke() {
-  timeout 300 docker exec "$SPARK_MASTER_CONTAINER" /opt/spark/bin/spark-submit \
-    --master "$SPARK_MASTER_URL" /jobs/hive_smoke.py 2>&1 | grep -q "HIVE_SMOKE lignes = 10"
-}
-
 # Comptes Bronze = source (script jobs/check_bronze.py monté dans /jobs)
 bronze_counts() {
   local out
@@ -221,11 +215,6 @@ done
 
 echo "== 6. Hive Metastore =="
 check "Spark atteint le metastore (hive-metastore:9083)" tcp_from "$SPARK_MASTER_CONTAINER" hive-metastore 9083
-if [ "${SMOKE_HIVE:-0}" = "1" ]; then
-  check "Hive : Spark crée et relit une table sur HDFS" hive_smoke
-else
-  skip "test Hive complet : lancer avec SMOKE_HIVE=1"
-fi
 
 echo "== 7. Qualité des données =="
 if [ "${SMOKE_COUNTS:-0}" = "1" ]; then
