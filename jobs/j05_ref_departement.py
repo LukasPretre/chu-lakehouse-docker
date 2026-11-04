@@ -44,9 +44,11 @@ qc("doublons_code", ref.count() - ref.select("code_departement").distinct().coun
 
 # Tests des fonctions de dérivation : (valeur, attendu)
 cas_commune = [("75056", "75"), ("2A004", "2A"), ("2b033", "2B"), ("97411", "974"), ("97608", "976"),
-               ("1053", "01"), ("99134", "99"), ("", None), ("ABCDE", None)]
+               ("1053", "01"), ("99134", "99"), ("", None), ("ABCDE", None),
+               ("20004", None), ("00000", None), ("98611", "986")]
 cas_postal = [("75001", "75"), ("20000", "2A"), ("20200", "2B"), ("97400", "974"), ("1000", "01"),
-              ("6000", "06"), ("", None), ("7500", "07")]
+              ("6000", "06"), ("", None), ("7500", "07"), ("98000", None), ("00100", None),
+              ("97133", "977"), ("97150", "978")]
 for nom, cas, fonction in (("commune", cas_commune, departement_depuis_commune),
                            ("code_postal", cas_postal, departement_depuis_code_postal)):
     df = spark.createDataFrame([(v, a) for v, a in cas], "valeur string, attendu string")
