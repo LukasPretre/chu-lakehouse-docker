@@ -61,4 +61,3 @@ QUALITE,patient,etendue,annee_naissance_min,1920
 QUALITE,patient,etendue,annee_naissance_max,2021
 QUALITE,patient,repartition_sexe,F,59219
 QUALITE,patient,repartition_sexe,M,40781
-QUALITE_FIN run_id=20261103T123706 lignes=63

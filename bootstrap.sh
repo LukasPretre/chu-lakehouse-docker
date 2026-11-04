@@ -103,8 +103,8 @@ ok "variables Superset présentes dans .env"
 
 # ---------------------------------------------------------------- 2. Dossiers et driver
 etape "2. Dossiers et driver JDBC"
-mkdir -p data drivers jobs hadoop-conf nifi-flows
-chmod 777 data 2>/dev/null || avert "chmod 777 data impossible (dossier créé par root ? sudo chown -R \$USER data)"
+mkdir -p data data/depot_s2 drivers jobs hadoop-conf nifi-flows
+chmod 777 data data/depot_s2 2>/dev/null || avert "chmod 777 data impossible (dossier créé par root ? sudo chown -R \$USER data)"
 if [ ! -s "$JDBC_JAR" ]; then
   info "téléchargement du driver PostgreSQL ${JDBC_VERSION}"
   curl -fL --retry 3 -o "$JDBC_JAR" "$JDBC_URL" >/dev/null 2>&1 || fail "téléchargement du driver impossible ($JDBC_URL)"
@@ -212,9 +212,13 @@ cat <<EOF
     Spark       http://${HOST_IP}:8080
     Superset    http://${HOST_IP}:8088   (utilisateur : admin, mot de passe : SUPERSET_ADMIN_PASSWORD dans .env)
 
-  1. NiFi : importer nifi-flows/J01.json (icône « Process Group », puis Upload),
+  1. NiFi, source S1 : importer nifi-flows/J01.json (icône « Process Group », puis Upload),
      ouvrir le service DBCPConnectionPool, ressaisir PG_PASSWORD, l'activer,
      puis faire « Run Once » sur chaque GenerateFlowFile.
-  2. Silver de la source S1 : ./run_silver_s1.sh
-  3. Contrôle de la pile : SMOKE_COUNTS=1 ./fichier_test.sh
+  2. NiFi, source S2 : déposer les 4 CSV dans data/depot_s2/ (etablissement_sante.csv,
+     professionnel_sante.csv, activite_professionnel_sante.csv, Hospitalisations.csv),
+     importer nifi-flows/J02.json, activer ses services, puis Start ; Stop quand les files sont vides.
+  3. Toute la chaîne (Silver S1 et S2, référentiel, Gold, tests) : ./run_pipeline.sh
+     (ou étape par étape : ./run_silver_s1.sh, ./run_silver_s2.sh, ./test_silver.sh, ./test_gold.sh)
+  4. Contrôle de la pile : SMOKE_COUNTS=1 ./fichier_test.sh
 EOF
