@@ -46,7 +46,12 @@ t = (t.withColumn("dep_commune", departement_depuis_commune("code_commune"))
       .withColumn("origine_departement",
                   F.when(F.col("dep_commune").isNotNull(), F.lit("commune"))
                    .when(F.col("dep_postal").isNotNull(), F.lit("code_postal")))
-      .withColumn("categorie", F.lit("Non renseigné"))   # aucune colonne source (limite à écrire dans le rapport)
+      .withColumn("categorie", F.lit("Non renseigné"))
+      # finess_site de la source est inutilisable (200 valeurs) : le vrai FINESS geographique est dans
+      # identifiant_organisation pour le prefixe F (F + 9 chiffres). Cle de rattachement pour e-Satis (J17).
+      .withColumn("finess_geo",
+                  F.when(F.col("identifiant_organisation").startswith("F"),
+                         F.substring("identifiant_organisation", 2, 9)))   # aucune colonne source (limite à écrire dans le rapport)
       .withColumn("code_rejet",
          F.when(F.col("identifiant_organisation").isNull(), "ID_NUL")
           .when(F.col("raison_sociale").isNull(), "RAISON_SOCIALE_NULLE")
@@ -58,7 +63,7 @@ ref = table_departements(spark).select("code_departement", "code_region_insee")
 t = (t.join(F.broadcast(ref), "code_departement", "left")
       .withColumn("code_region_insee", F.coalesce(F.col("code_region_insee"), F.lit("ZZ"))))
 
-cols = ["identifiant_organisation", "finess_site", "finess_juridique", "siret_site", "siren_site",
+cols = ["identifiant_organisation", "finess_site", "finess_geo", "finess_juridique", "siret_site", "siren_site",
         "raison_sociale", "enseigne", "categorie", "code_commune", "commune", "code_postal",
         "code_departement", "code_region_insee", "origine_departement", "pays", "ingest_date"]
 ok = t.filter("code_rejet IS NULL").dropDuplicates(["identifiant_organisation"]).select(*cols)
@@ -76,6 +81,9 @@ print("SILVER etablissement origine departement =",
       sorted([(r[0], r[1]) for r in res.groupBy("origine_departement").count().collect()], key=lambda x: str(x[0])))
 print("SILVER etablissement prefixes identifiant =",
       sorted([(r[0], r[1]) for r in res.groupBy(F.substring("identifiant_organisation", 1, 1).alias("p")).count().collect()]))
+print("SILVER etablissement finess_geo renseigne =", res.filter("finess_geo IS NOT NULL").count(),
+      "| au format FINESS (2 chiffres ou 2A/2B + 7 chiffres) =",
+      res.filter("finess_geo rlike '^([0-9]{2}|2[AB])[0-9]{7}$'").count())
 print("SILVER etablissement departement hors referentiel (NULL) =", res.filter("code_departement IS NULL").count())
 print("SILVER etablissement region inconnue (ZZ) =", res.filter("code_region_insee = 'ZZ'").count())
 print("SILVER etablissement regions distinctes =", res.select("code_region_insee").distinct().count())
