@@ -17,7 +17,8 @@ Règles de dérivation
   202 à 206 -> 2B ; sinon 2 premiers chiffres. C'est une approximation : quelques codes
   postaux desservent des communes d'un département voisin. À utiliser seulement en repli,
   quand le code commune manque.
-- Un code absent, mal formé ou inconnu du référentiel donne NULL (région inconnue -1 en Gold).
+- Un code absent, mal formé, ou dont le département n'existe pas dans le référentiel (20 corse
+  numérique, 00, 980 Monaco...) donne NULL (région inconnue -1 en Gold).
 """
 from pyspark.sql import functions as F
 
@@ -146,22 +147,32 @@ def _nettoyer(col, longueur):
     return F.when((c == "") | c.isNull(), F.lit(None)).otherwise(c)
 
 
+CODES_CONNUS = [d[0] for d in DEPARTEMENTS]
+
+
+def _connu(expr):
+    """Garde le département seulement s'il existe dans le référentiel, sinon NULL.
+    Écarte par exemple 20 (ancien code commune corse numérique, ambigu entre 2A et 2B),
+    00 (commune 00000) ou 980 (Monaco)."""
+    return F.when(expr.isin(*CODES_CONNUS), expr)
+
+
 def departement_depuis_commune(col):
     c = _nettoyer(col, 5)
-    return (F.when(~c.rlike("^([0-9]{5}|2[AB][0-9]{3})$"), F.lit(None))
-             .when(c.startswith("99"), F.lit("99"))
-             .when(c.startswith("97") | c.startswith("98"), c.substr(1, 3))
-             .otherwise(c.substr(1, 2)))
+    return _connu(F.when(~c.rlike("^([0-9]{5}|2[AB][0-9]{3})$"), F.lit(None))
+                   .when(c.startswith("99"), F.lit("99"))
+                   .when(c.startswith("97") | c.startswith("98"), c.substr(1, 3))
+                   .otherwise(c.substr(1, 2)))
 
 
 def departement_depuis_code_postal(col):
     c = _nettoyer(col, 5)
     trois = c.substr(1, 3)
-    return (F.when(~c.rlike("^[0-9]{5}$"), F.lit(None))
-             .when(trois.isin("200", "201"), F.lit("2A"))
-             .when(trois.isin("202", "203", "204", "205", "206"), F.lit("2B"))
-             .when(c.startswith("97") | c.startswith("98"), trois)
-             .otherwise(c.substr(1, 2)))
+    return _connu(F.when(~c.rlike("^[0-9]{5}$"), F.lit(None))
+                   .when(trois.isin("200", "201"), F.lit("2A"))
+                   .when(trois.isin("202", "203", "204", "205", "206"), F.lit("2B"))
+                   .when(c.startswith("97") | c.startswith("98"), trois)
+                   .otherwise(c.substr(1, 2)))
 
 
 def table_departements(spark):
