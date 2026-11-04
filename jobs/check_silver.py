@@ -42,6 +42,7 @@ ENTITES = {
                                ["identifiant", "nom", "prenom"]),
     "hospitalisation":        (["num_hospitalisation"], ["patient_pseudo"], ["id_patient"]),
     "esatis":                 (["annee", "type_enquete", "finess_geo"], [], []),
+    "ref_departement":        (["code_departement"], [], []),
     "deces":                  (["cle_deces"], [],
                                ["nom", "prenom", "date_naissance", "lieu_naissance", "code_lieu_naissance",
                                 "pays_naissance", "numero_acte_deces"]),
