@@ -51,12 +51,9 @@ jobs:
         run: ./test_silver.sh
 
       - name: Référentiel département -> région (J05)
-        run: docker exec chu_spark_master /opt/spark/bin/spark-submit \
+        run: |
+          docker exec chu_spark_master /opt/spark/bin/spark-submit \
             --master spark://spark-master:7077 /jobs/j05_ref_departement.py 2>&1 | grep -E '^(J05QC|SILVER)'
-
-      - name: Référentiel département -> région (J05)
-        run: docker exec chu_spark_master /opt/spark/bin/spark-submit \
-              --master spark://spark-master:7077 /jobs/j05_ref_departement.py 2>&1 | grep -E '^(J05QC|SILVER)'
 
       - name: Fait consultation J30 (mode test, dimensions provisoires)
         run: |
