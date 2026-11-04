@@ -145,3 +145,29 @@ services:
       - chu_network
     volumes:
       - ./drivers/postgresql-42.7.3.jar:/opt/hive/lib/postgresql-9.4.1208.jre7.jar:ro
+
+  superset:
+    build:
+      context: ./superset
+      args:
+        SUPERSET_VERSION: "${SUPERSET_VERSION:-5.0.0}"
+    image: chu-superset:local
+    container_name: chu_superset
+    restart: always
+    mem_limit: 1536m
+    depends_on:
+      - postgres
+    environment:
+      SUPERSET_CONFIG_PATH: /app/pythonpath/superset_config.py
+      SUPERSET_SECRET_KEY: "${SUPERSET_SECRET_KEY}"
+      SUPERSET_ADMIN_USER: "${SUPERSET_ADMIN_USER}"
+      SUPERSET_ADMIN_PASSWORD: "${SUPERSET_ADMIN_PASSWORD}"
+      SUPERSET_PG_RO_PASSWORD: "${SUPERSET_PG_RO_PASSWORD}"
+      PG_USER: "${PG_USER}"
+      PG_PASSWORD: "${PG_PASSWORD}"
+    ports:
+      - "8088:8088"
+    volumes:
+      - ./superset/superset_config.py:/app/pythonpath/superset_config.py:ro
+    networks:
+      - chu_network

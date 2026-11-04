@@ -239,5 +239,8 @@ fi
 #   Superset : curl http://localhost:8088/health
 
 echo
+. "$(dirname "$0")/superset/test_superset.sh"
+
+echo
 echo "Résultat : $PASS réussis, $FAIL en échec, $SKIP ignorés"
 [ "$FAIL" -eq 0 ]

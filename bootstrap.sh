@@ -98,6 +98,9 @@ else
 fi
 ok ".env complet (les mots de passe sont dans .env, à ne jamais commiter)"
 
+./superset/init_superset.sh --env >/dev/null || fail "variables Superset non ajoutées à .env"
+ok "variables Superset présentes dans .env"
+
 # ---------------------------------------------------------------- 2. Dossiers et driver
 etape "2. Dossiers et driver JDBC"
 mkdir -p data drivers jobs hadoop-conf nifi-flows
@@ -178,6 +181,10 @@ docker exec "$NN_CONTAINER" hdfs dfs -mkdir -p /bronze /silver /warehouse >/dev/
 docker exec "$NN_CONTAINER" hdfs dfs -chmod -R 777 /bronze /silver /warehouse >/dev/null
 ok "dossiers HDFS /bronze /silver /warehouse"
 
+# ---------------------------------------------------------------- 5 bis. Superset
+etape "5 bis. Superset (visualisation)"
+./superset/init_superset.sh | sed "s/^/  /" || avert "Superset non initialisé : relancer ./superset/init_superset.sh"
+
 # ---------------------------------------------------------------- 6. Données sources
 etape "6. Données sources (dump PostgreSQL)"
 nb=$(docker exec "$PG_CONTAINER" psql -U "$PG_USER" -d chu_s1_db -tAc 'SELECT count(*) FROM public."Consultation"' 2>/dev/null || true)
@@ -203,6 +210,7 @@ cat <<EOF
     NiFi        https://${HOST_IP}:8443   (utilisateur : ${NIFI_USER}, mot de passe dans .env ; démarrage : 1 à 3 minutes)
     HDFS        http://${HOST_IP}:9870
     Spark       http://${HOST_IP}:8080
+    Superset    http://${HOST_IP}:8088   (utilisateur : admin, mot de passe : SUPERSET_ADMIN_PASSWORD dans .env)
 
   1. NiFi : importer nifi-flows/J01.json (icône « Process Group », puis Upload),
      ouvrir le service DBCPConnectionPool, ressaisir PG_PASSWORD, l'activer,
