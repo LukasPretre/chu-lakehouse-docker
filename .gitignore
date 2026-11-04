@@ -8,3 +8,5 @@ Thumbs.db
 data/
 drivers/*.jar
 .env
+__pycache__/
+*.pyc

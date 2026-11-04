@@ -23,8 +23,16 @@ for t in Diagnostic Specialites Patient Professionnel_de_sante Consultation; do
 done
 echo "[OK] Bronze S1 présent dans HDFS"
 
+# duree job debut : affiche la durée du job ; au-delà de 2 minutes (objectif du projet), le signale
+duree() {
+  local s=$(( $(date +%s) - $2 ))
+  if [ "$s" -gt 120 ]; then echo "[ATTENTION] $1 : ${s} s (objectif : 2 min par job)"
+  else echo "[..] $1 : ${s} s"; fi
+}
+
 lancer() {
-  local job=$1
+  local job=$1 t0
+  t0=$(date +%s)
   echo "== $job"
   local out
   out=$(docker exec -e HMAC_KEY_PATIENTS -e HMAC_KEY_PROFESSIONNELS "$SPARK" \
@@ -34,6 +42,7 @@ lancer() {
     tail -25 <<<"$out" >&2
     exit 1
   fi
+  duree "$job" "$t0"
 }
 
 lancer j10_silver_patient.py

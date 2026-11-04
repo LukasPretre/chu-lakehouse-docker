@@ -6,6 +6,7 @@ QUALITE,etablissement,rejets,TOTAL,29
 QUALITE,etablissement,perte,bronze-silver-rejets,0
 QUALITE,etablissement,completude_pct,identifiant_organisation,100.00
 QUALITE,etablissement,completude_pct,finess_site,0.05
+QUALITE,etablissement,completude_pct,finess_geo,13.85
 QUALITE,etablissement,completude_pct,finess_juridique,13.85
 QUALITE,etablissement,completude_pct,siret_site,17.84
 QUALITE,etablissement,completude_pct,siren_site,13.80
@@ -17,6 +18,7 @@ QUALITE,etablissement,completude_pct,code_commune,66.69
 QUALITE,etablissement,completude_pct,commune,66.69
 QUALITE,etablissement,completude_pct,code_postal,100.00
 QUALITE,etablissement,completude_pct,code_departement,100.00
+QUALITE,etablissement,completude_pct,code_region_insee,100.00
 QUALITE,etablissement,completude_pct,origine_departement,100.00
 QUALITE,etablissement,completude_pct,pays,100.00
 QUALITE,etablissement,doublons_cle,identifiant_organisation,0
@@ -51,7 +53,7 @@ QUALITE,etablissement,finess_doublons,finess_site,0
 QUALITE,etablissement,finess_nul,finess_juridique,358947
 QUALITE,etablissement,finess_format_invalide,finess_juridique,0
 QUALITE,etablissement,finess_longueur_diff_9,finess_juridique,0
-QUALITE,etablissement,finess_departement_incoherent,finess_juridique,7335
+QUALITE,etablissement,finess_departement_incoherent,finess_juridique,7322
 QUALITE,etablissement,finess_doublons,finess_juridique,23967
 QUALITE,etablissement,prefixe_identifiant,C,136680
 QUALITE,etablissement,prefixe_identifiant,F,57689
@@ -78,4 +80,3 @@ QUALITE,professionnel_sante_s2,bronze_lignes,,1048575
 QUALITE,professionnel_s1,lignes,,1048575
 QUALITE,activite_professionnel,troncature_s1,professionnels_absents_de_s1,681292
 QUALITE,activite_professionnel,troncature_s1,professionnels_retrouves,943856
-QUALITE_FIN run_id=20261104T123159 lignes=80

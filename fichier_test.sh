@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Tests de l'infrastructure CHU : PostgreSQL, NiFi, Spark.
+# Tests de l'infrastructure CHU : conteneurs, PostgreSQL, NiFi, Spark, HDFS (Bronze S1 et S2),
+# Hive Metastore, comptes Bronze (SMOKE_COUNTS=1) et Superset.
 # Usage : ./fichier_test.sh        (depuis le dossier du docker-compose.yml)
 #
 # Les secrets ne sont pas écrits ici : ils sont lus dans le fichier .env
@@ -158,6 +159,14 @@ hdfs_rw() {
 }
 
 # Comptes Bronze = source (script jobs/check_bronze.py monté dans /jobs)
+# Comptes Bronze S2 = fichiers (script jobs/check_bronze_s2.py, dernière partition)
+bronze_counts_s2() {
+  local out
+  out=$(timeout 300 docker exec "$SPARK_MASTER_CONTAINER" /opt/spark/bin/spark-submit \
+        --master "$SPARK_MASTER_URL" /jobs/check_bronze_s2.py 2>&1 | grep "^BRONZE S2")
+  [ -n "$out" ] && ! echo "$out" | grep -q -E "ECART|ABSENT"
+}
+
 bronze_counts() {
   local out
   out=$(timeout 300 docker exec "$SPARK_MASTER_CONTAINER" /opt/spark/bin/spark-submit \
@@ -212,6 +221,13 @@ check "Spark atteint le namenode (namenode:8020)" tcp_from "$SPARK_MASTER_CONTAI
 for t in Diagnostic Specialites Patient Professionnel_de_sante Consultation; do
   check "Bronze S1 présent dans HDFS : $t" docker exec "$NAMENODE_CONTAINER" hdfs dfs -test -d "/bronze/s1/$t"
 done
+if docker exec "$NAMENODE_CONTAINER" hdfs dfs -test -d /bronze/s2 >/dev/null 2>&1; then
+  for t in etablissement_sante professionnel_sante activite_professionnel_sante hospitalisation; do
+    check "Bronze S2 présent dans HDFS : $t" docker exec "$NAMENODE_CONTAINER" hdfs dfs -test -d "/bronze/s2/$t"
+  done
+else
+  skip "Bronze S2 absent : déposer les CSV dans data/depot_s2/ puis lancer le flux NiFi J02"
+fi
 
 echo "== 6. Hive Metastore =="
 check "Spark atteint le metastore (hive-metastore:9083)" tcp_from "$SPARK_MASTER_CONTAINER" hive-metastore 9083
@@ -219,13 +235,17 @@ check "Spark atteint le metastore (hive-metastore:9083)" tcp_from "$SPARK_MASTER
 echo "== 7. Qualité des données =="
 if [ "${SMOKE_COUNTS:-0}" = "1" ]; then
   check "Bronze = source (5 tables, comptes identiques)" bronze_counts
+  if docker exec "$NAMENODE_CONTAINER" hdfs dfs -test -d /bronze/s2 >/dev/null 2>&1; then
+    check "Bronze S2 = fichiers (4 tables, comptes identiques, sans doublon)" bronze_counts_s2
+  else
+    skip "comptes Bronze S2 : Bronze S2 absent"
+  fi
 else
   skip "comptes Bronze = source : lancer avec SMOKE_COUNTS=1"
 fi
 
-# Pour les prochains outils, ajouter ici un bloc de test :
-#   Airflow  : curl http://localhost:8082/health
-#   Superset : curl http://localhost:8088/health
+# Tests Superset (section 8) : superset/test_superset.sh. Les couches Silver et Gold ont leurs
+# propres tests : ./test_silver.sh et ./test_gold.sh (lancés aussi par ./run_pipeline.sh).
 
 echo
 . "$(dirname "$0")/superset/test_superset.sh"

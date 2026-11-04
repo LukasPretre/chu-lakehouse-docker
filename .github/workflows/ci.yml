@@ -1,5 +1,5 @@
 # CI du lakehouse CHU : monte la pile Docker sur un runner GitHub (bootstrap.sh), la remplit
-# avec un Bronze S1 synthétique (aucune donnée réelle : RGPD, HDS), puis lance la chaîne Silver
+# avec des Bronze S1 et S2 synthétiques (aucune donnée réelle : RGPD, HDS), puis lance la chaîne Silver
 # et les tests Silver et Gold. Durée indicative : 10 à 20 minutes, surtout le téléchargement des images.
 name: CI Silver et Gold
 
@@ -47,7 +47,24 @@ jobs:
       - name: Chaîne Silver S1 (J10, J11, J12)
         run: ./run_silver_s1.sh
 
-      - name: Tests Silver
+      - name: Bronze S2 synthétique
+        run: |
+          docker cp tests/ci_bronze_s2.py chu_spark_master:/tmp/ci_bronze_s2.py
+          docker exec chu_spark_master /opt/spark/bin/spark-submit \
+            --master spark://spark-master:7077 /tmp/ci_bronze_s2.py 2>&1 \
+            | grep -oE 'CI (bronze|attendus).*|\[ECHEC\].*|Traceback.*|[A-Za-z]*Error.*'
+
+      - name: Chaîne Silver S2 (J14, J15, J16) et volumes attendus
+        run: |
+          ./run_silver_s2.sh | tee /tmp/s2.log
+          grep -q 'SILVER etablissement bronze=68 valides=62 rejetes=4 doublons=2' /tmp/s2.log
+          grep -q 'SILVER etablissement finess_geo renseigne = 40 ' /tmp/s2.log
+          grep -q 'SILVER etablissement region inconnue (ZZ) = 1$' /tmp/s2.log
+          grep -q 'SILVER activite_professionnel bronze=92 valides=85 rejetes=5 doublons=2' /tmp/s2.log
+          grep -q 'SILVER hospitalisation bronze=36 valides=32 rejetes=3 doublons=1' /tmp/s2.log
+          grep -q 'SILVER hospitalisation patients introuvables = 1$' /tmp/s2.log
+
+      - name: Tests Silver (S1 et S2)
         run: ./test_silver.sh
 
       - name: Référentiel département -> région (J05)
