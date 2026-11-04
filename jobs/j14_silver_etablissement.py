@@ -1,4 +1,8 @@
+import sys
 from pyspark.sql import SparkSession, functions as F
+
+sys.path.insert(0, "/jobs")
+from lib_geo import departement_depuis_commune, departement_depuis_code_postal  # J05
 
 H = "hdfs://namenode:8020"
 spark = (SparkSession.builder.appName("J14_silver_etablissement")
@@ -12,19 +16,6 @@ def nettoyer(c):
 def zeros(col, n):
     # zéros initiaux perdus par Excel : on complète seulement les valeurs numériques trop courtes
     return F.when(col.rlike("^[0-9]+$") & (F.length(col) < n), F.lpad(col, n, "0")).otherwise(col)
-
-def departement(code):
-    # 97x/98x : 3 chiffres ; Corse (2A/2B) lue telle quelle ; sinon 2 chiffres
-    return (F.when(code.isNull(), F.lit(None))
-             .when(code.rlike("^9[78]"), F.substring(code, 1, 3))
-             .otherwise(F.substring(code, 1, 2)))
-
-def departement_postal(cp):
-    # code postal : Corse 200-201 -> 2A, 202-206 -> 2B
-    return (F.when(~F.coalesce(cp.rlike("^[0-9]{5}$"), F.lit(False)), F.lit(None))
-             .when(cp.rlike("^20[01]"), F.lit("2A"))
-             .when(cp.rlike("^20[2-6]"), F.lit("2B"))
-             .otherwise(departement(cp)))
 
 b = spark.read.parquet(f"{H}/bronze/s2/etablissement_sante")
 b = b.filter(F.col("ingest_date") == b.agg(F.max("ingest_date")).first()[0])
@@ -43,8 +34,8 @@ t = b.select(
     nettoyer("pays").alias("pays"),
     "ingest_date")
 
-t = (t.withColumn("dep_commune", departement(F.col("code_commune")))
-      .withColumn("dep_postal", departement_postal(F.col("code_postal")))
+t = (t.withColumn("dep_commune", departement_depuis_commune("code_commune"))
+      .withColumn("dep_postal", departement_depuis_code_postal("code_postal"))
       .withColumn("code_departement", F.coalesce("dep_commune", "dep_postal"))
       .withColumn("origine_departement",
                   F.when(F.col("dep_commune").isNotNull(), F.lit("commune"))
