@@ -34,8 +34,14 @@ t = b.select(
     nettoyer("pays").alias("pays"),
     "ingest_date")
 
+# departements valides du referentiel J05 : un code deduit hors de cette liste (ex. 20 pour une commune
+# corse numerique, 00 pour une commune inconnue) est ignore et on se rabat sur le code postal.
+valides = [r[0] for r in table_departements(spark).select("code_departement").collect()]
+
 t = (t.withColumn("dep_commune", departement_depuis_commune("code_commune"))
       .withColumn("dep_postal", departement_depuis_code_postal("code_postal"))
+      .withColumn("dep_commune", F.when(F.col("dep_commune").isin(valides), F.col("dep_commune")))
+      .withColumn("dep_postal", F.when(F.col("dep_postal").isin(valides), F.col("dep_postal")))
       .withColumn("code_departement", F.coalesce("dep_commune", "dep_postal"))
       .withColumn("origine_departement",
                   F.when(F.col("dep_commune").isNotNull(), F.lit("commune"))
@@ -70,6 +76,7 @@ print("SILVER etablissement origine departement =",
       sorted([(r[0], r[1]) for r in res.groupBy("origine_departement").count().collect()], key=lambda x: str(x[0])))
 print("SILVER etablissement prefixes identifiant =",
       sorted([(r[0], r[1]) for r in res.groupBy(F.substring("identifiant_organisation", 1, 1).alias("p")).count().collect()]))
+print("SILVER etablissement departement hors referentiel (NULL) =", res.filter("code_departement IS NULL").count())
 print("SILVER etablissement region inconnue (ZZ) =", res.filter("code_region_insee = 'ZZ'").count())
 print("SILVER etablissement regions distinctes =", res.select("code_region_insee").distinct().count())
 spark.stop()
