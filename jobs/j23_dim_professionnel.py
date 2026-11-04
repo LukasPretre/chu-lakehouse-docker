@@ -40,7 +40,7 @@ ok = G.charger_dimension(
     spark, "dim_professionnel", "id_professionnel", "identifiant_pseudo", source,
     inconnu=(-1, "INCONNU", "Inconnu", "Inconnu", "Inconnu", "Inconnu", "Inconnu"),
     longueurs={"identifiant_pseudo": 64, "type_identifiant": 10, "categorie_professionnelle": 30,
-               "profession": 60, "fonction": 30, "specialite": 80},
+               "profession": 60, "fonction": 100, "specialite": 80},
     job="J23",
 )
 spark.stop()
