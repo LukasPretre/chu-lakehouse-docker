@@ -171,6 +171,8 @@ def departement_depuis_code_postal(col):
     return _connu(F.when(~c.rlike("^[0-9]{5}$"), F.lit(None))
                    .when(trois.isin("200", "201"), F.lit("2A"))
                    .when(trois.isin("202", "203", "204", "205", "206"), F.lit("2B"))
+                   .when(c == "97133", F.lit("977"))   # Saint-Barthélemy (code postal en 971)
+                   .when(c == "97150", F.lit("978"))   # Saint-Martin (code postal en 971)
                    .when(c.startswith("97") | c.startswith("98"), trois)
                    .otherwise(c.substr(1, 2)))
 
