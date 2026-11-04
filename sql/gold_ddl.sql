@@ -126,7 +126,7 @@ CREATE TABLE dim_professionnel (
     type_identifiant           VARCHAR(10),
     categorie_professionnelle  VARCHAR(30),
     profession                 VARCHAR(60),                    -- « Non renseigné » si vide
-    fonction                   VARCHAR(30),
+    fonction                   VARCHAR(100),
     specialite                 VARCHAR(80),
     run_id                     VARCHAR(40),
     date_chargement            TIMESTAMP    NOT NULL DEFAULT now()
