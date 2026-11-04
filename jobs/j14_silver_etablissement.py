@@ -46,7 +46,7 @@ t = (t.withColumn("dep_commune", departement_depuis_commune("code_commune"))
       .withColumn("origine_departement",
                   F.when(F.col("dep_commune").isNotNull(), F.lit("commune"))
                    .when(F.col("dep_postal").isNotNull(), F.lit("code_postal")))
-      .withColumn("categorie", F.lit("Non renseignée"))   # aucune colonne source (limite à écrire dans le rapport)
+      .withColumn("categorie", F.lit("Non renseigné"))   # aucune colonne source (limite à écrire dans le rapport)
       .withColumn("code_rejet",
          F.when(F.col("identifiant_organisation").isNull(), "ID_NUL")
           .when(F.col("raison_sociale").isNull(), "RAISON_SOCIALE_NULLE")
