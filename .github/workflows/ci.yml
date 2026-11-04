@@ -65,11 +65,14 @@ jobs:
           APPLIQUER_DDL: "1"
           LANCER_JOBS: "1"
 
+      - name: Tests Superset
+        run: ./superset/test_superset.sh
+
       - name: Journaux des conteneurs en cas d'échec
         if: failure()
         run: |
           docker compose ps -a
-          for c in chu_hive_metastore chu_namenode chu_datanode chu_spark_master chu_spark_worker chu_postgres; do
+          for c in chu_superset chu_hive_metastore chu_namenode chu_datanode chu_spark_master chu_spark_worker chu_postgres; do
             echo "::group::$c"
             docker logs --tail 80 "$c" 2>&1 || true
             echo "::endgroup::"
