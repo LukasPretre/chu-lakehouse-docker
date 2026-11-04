@@ -2,7 +2,7 @@ import sys
 from pyspark.sql import SparkSession, functions as F
 
 sys.path.insert(0, "/jobs")
-from lib_geo import departement_depuis_commune, departement_depuis_code_postal  # J05
+from lib_geo import departement_depuis_commune, departement_depuis_code_postal, table_departements  # J05
 
 H = "hdfs://namenode:8020"
 spark = (SparkSession.builder.appName("J14_silver_etablissement")
@@ -46,9 +46,15 @@ t = (t.withColumn("dep_commune", departement_depuis_commune("code_commune"))
           .when(F.col("raison_sociale").isNull(), "RAISON_SOCIALE_NULLE")
           .when(~F.coalesce(F.col("code_postal").rlike("^[0-9]{5}$"), F.lit(False)), "CODE_POSTAL_INVALIDE")))
 
+# region INSEE : jointure gauche sur le departement (une seule ligne par code dans le referentiel J05).
+# J22 tourne dans PostgreSQL et ne peut pas lire HDFS, donc la region est portee par le Silver. ZZ = Inconnu.
+ref = table_departements(spark).select("code_departement", "code_region_insee")
+t = (t.join(F.broadcast(ref), "code_departement", "left")
+      .withColumn("code_region_insee", F.coalesce(F.col("code_region_insee"), F.lit("ZZ"))))
+
 cols = ["identifiant_organisation", "finess_site", "finess_juridique", "siret_site", "siren_site",
         "raison_sociale", "enseigne", "categorie", "code_commune", "commune", "code_postal",
-        "code_departement", "origine_departement", "pays", "ingest_date"]
+        "code_departement", "code_region_insee", "origine_departement", "pays", "ingest_date"]
 ok = t.filter("code_rejet IS NULL").dropDuplicates(["identifiant_organisation"]).select(*cols)
 rej = t.filter("code_rejet IS NOT NULL").select("identifiant_organisation", "code_rejet")
 
@@ -64,4 +70,6 @@ print("SILVER etablissement origine departement =",
       sorted([(r[0], r[1]) for r in res.groupBy("origine_departement").count().collect()], key=lambda x: str(x[0])))
 print("SILVER etablissement prefixes identifiant =",
       sorted([(r[0], r[1]) for r in res.groupBy(F.substring("identifiant_organisation", 1, 1).alias("p")).count().collect()]))
+print("SILVER etablissement region inconnue (ZZ) =", res.filter("code_region_insee = 'ZZ'").count())
+print("SILVER etablissement regions distinctes =", res.select("code_region_insee").distinct().count())
 spark.stop()
