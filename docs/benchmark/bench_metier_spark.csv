@@ -1,0 +1,35 @@
+BENCHM_VARIANTE,plat,chu_bench.fait_consultation_plat,1027157
+BENCHM_VARIANTE,part,chu_bench.fait_consultation_part,1027157
+BENCHM_VARIANTE,part_bucket,chu_gold.fait_consultation,1027157
+BENCHM,plat,M2_diagnostic_trimestre,1,5.740,46093
+BENCHM,plat,M2_diagnostic_trimestre,2,2.867,46093
+BENCHM,plat,M2_diagnostic_trimestre,3,2.368,46093
+BENCHM_MED,plat,M2_diagnostic_trimestre,2.867
+BENCHM,part,M2_diagnostic_trimestre,1,2.582,46093
+BENCHM,part,M2_diagnostic_trimestre,2,2.170,46093
+BENCHM,part,M2_diagnostic_trimestre,3,2.058,46093
+BENCHM_MED,part,M2_diagnostic_trimestre,2.170
+BENCHM,part_bucket,M2_diagnostic_trimestre,1,2.128,46093
+BENCHM,part_bucket,M2_diagnostic_trimestre,2,2.116,46093
+BENCHM,part_bucket,M2_diagnostic_trimestre,3,2.340,46093
+BENCHM_MED,part_bucket,M2_diagnostic_trimestre,2.128
+BENCHM_EGALITE,M2_diagnostic_trimestre,OK,{'plat': (46093, 87497), 'part': (46093, 87497), 'part_bucket': (46093, 87497)}
+BENCHM,plat,M3_professionnel_annee,1,6.873,386
+BENCHM,plat,M3_professionnel_annee,2,4.334,386
+BENCHM,plat,M3_professionnel_annee,3,4.765,386
+BENCHM_MED,plat,M3_professionnel_annee,4.765
+BENCHM,part,M3_professionnel_annee,1,4.438,386
+BENCHM,part,M3_professionnel_annee,2,4.773,386
+BENCHM,part,M3_professionnel_annee,3,4.628,386
+BENCHM_MED,part,M3_professionnel_annee,4.628
+BENCHM,part_bucket,M3_professionnel_annee,1,5.073,386
+BENCHM,part_bucket,M3_professionnel_annee,2,4.990,386
+BENCHM,part_bucket,M3_professionnel_annee,3,5.087,386
+BENCHM_MED,part_bucket,M3_professionnel_annee,5.073
+BENCHM_EGALITE,M3_professionnel_annee,OK,{'plat': (386, 791925), 'part': (386, 791925), 'part_bucket': (386, 791925)}
+BENCHM_GAIN,plat,M2_diagnostic_trimestre,1.00
+BENCHM_GAIN,part,M2_diagnostic_trimestre,1.32
+BENCHM_GAIN,part_bucket,M2_diagnostic_trimestre,1.35
+BENCHM_GAIN,plat,M3_professionnel_annee,1.00
+BENCHM_GAIN,part,M3_professionnel_annee,1.03
+BENCHM_GAIN,part_bucket,M3_professionnel_annee,0.94

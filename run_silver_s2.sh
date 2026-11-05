@@ -47,8 +47,16 @@ fi
 echo "[OK] Bronze S2 conforme"
 
 # 3. Jobs Silver S2
+# duree job debut : affiche la durée du job ; au-delà de 2 minutes (objectif du projet), le signale
+duree() {
+  local s=$(( $(date +%s) - $2 ))
+  if [ "$s" -gt 120 ]; then echo "[ATTENTION] $1 : ${s} s (objectif : 2 min par job)"
+  else echo "[..] $1 : ${s} s"; fi
+}
+
 lancer() {
-  local job=$1 rc=0 out
+  local job=$1 rc=0 out t0
+  t0=$(date +%s)
   echo "== $job"
   out=$(soumettre "$job") || rc=$?
   grep -E '^SILVER' <<<"$out" || true
@@ -57,6 +65,7 @@ lancer() {
     tail -25 <<<"$out" >&2
     exit 1
   fi
+  duree "$job" "$t0"
 }
 
 lancer j14_silver_etablissement.py           # J14 avant J15 : J15 lit /silver/etablissement
