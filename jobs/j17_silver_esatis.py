@@ -25,10 +25,10 @@ MAP_CA = {"finess_juridique": "finess", "finess_geo": "finess_geo", "region": "r
           "score_sortie": "score_OVS_ajust", "nb_reponses": "nb_rep_score_all_ajust",
           "taux_recommandation": "taux_reco_brut", "classement": "classement", "evolution": "evolution"}
 CONFIG = [  # fichier d'origine, annee, type d'enquete, format, encodage, separateur, correspondance
-    ("ESATIS48H_MCO_recueil2017_donnees.csv", 2017, "48H_MCO", "csv", "windows-1252", ";", MAP_48H),
-    ("resultats-esatis48h-mco-open-data-2019.csv", 2019, "48H_MCO", "csv", "windows-1252", ";", MAP_48H),
+    ("ESATIS48H_MCO_recueil2017_donnees.csv", 2017, "48H", "csv", "windows-1252", ";", MAP_48H),
+    ("resultats-esatis48h-mco-open-data-2019.csv", 2019, "48H", "csv", "windows-1252", ";", MAP_48H),
     ("resultats-esatisca-mco-open-data-2019.csv", 2019, "CA", "csv", "windows-1252", ";", MAP_CA),
-    ("resultats-esatis48h-mco-open-data-2020.xlsx", 2020, "48H_MCO", "xlsx", None, None, MAP_48H),
+    ("resultats-esatis48h-mco-open-data-2020.xlsx", 2020, "48H", "xlsx", None, None, MAP_48H),
     ("resultats-esatisca-mco-open-data-2020.xlsx", 2020, "CA", "xlsx", None, None, MAP_CA),
 ]
 CIBLES = ["finess_juridique", "finess_geo", "region", "score_global", "score_accueil", "score_pec_infirmier",
@@ -93,6 +93,11 @@ def dernier_ingest():
     return noms[-1]
 
 def lire_fichier(chemin, fmt, encodage, sep):
+    jvm = spark._jvm
+    fs = jvm.org.apache.hadoop.fs.FileSystem.get(jvm.java.net.URI(H), spark._jsc.hadoopConfiguration())
+    if not fs.exists(jvm.org.apache.hadoop.fs.Path(chemin)):
+        raise SystemExit(f"SILVER esatis ERREUR : fichier absent du Bronze : {chemin} "
+                         "(verifier le flux NiFi J03 ou la liste CONFIG)")
     if fmt == "csv":
         return (spark.read.option("header", True).option("sep", sep).option("encoding", encodage)
                 .csv(chemin))
@@ -171,15 +176,18 @@ try:
 except Exception as e:
     print("SILVER esatis repli region par etablissement impossible :", str(e)[:120])
 
-hors = None
+# score hors 0-100 (QC05 du L1) : seul le score fautif passe a NULL, la ligne est conservee et comptee en anomalie
+def score_hors(s):
+    return F.col(s).isNotNull() & ((F.col(s) < 0) | (F.col(s) > 100))
+anomalies = t.agg(*[F.sum(F.when(score_hors(s), 1).otherwise(0)).alias(s) for s in SCORES]).first()
 for s in SCORES:
-    cond = F.col(s).isNotNull() & ((F.col(s) < 0) | (F.col(s) > 100))
-    hors = cond if hors is None else (hors | cond)
+    t = t.withColumn(s, F.when(score_hors(s), F.lit(None)).otherwise(F.col(s)))
+print("SILVER esatis score hors 0-100 mis a NULL =", sum(anomalies[s] or 0 for s in SCORES),
+      {s: anomalies[s] for s in SCORES if anomalies[s]})
 cle = ["annee", "type_enquete", "finess_geo"]
 t = t.withColumn("code_rejet",
         F.when(F.col("finess_geo").isNull(), "FINESS_GEO_NUL")
-         .when(~F.col("finess_geo").rlike(FINESS_OK), "FINESS_GEO_INVALIDE")
-         .when(hors, "SCORE_HORS_0_100"))
+         .when(~F.col("finess_geo").rlike(FINESS_OK), "FINESS_GEO_INVALIDE"))
 # doublon de cle : on garde la ligne la plus documentee (plus grand nb_reponses), les autres vont en rejets
 w = Window.partitionBy(*cle).orderBy(F.col("nb_reponses").desc_nulls_last(), F.col("source_fichier"))
 valides = t.filter("code_rejet IS NULL").withColumn("rang", F.row_number().over(w))

@@ -1,9 +1,9 @@
 """J18 : Silver deces (fichier INSEE). Source : Bronze S4 /bronze/s4/deces/ingest_date=<dernier>/deces.csv.
 RGPD : nom, prenom, lieu, code lieu et pays de naissance ne sont jamais conserves ; date_naissance sert seulement
-a calculer l'age puis disparait ; le numero d'acte et la date de naissance ne sont conserves que dans l'empreinte (cle_deces).
+a calculer l'age puis disparait ; le numero d'acte et la date de naissance ne sont conserves que dans l'empreinte HMAC secrete (cle_deces).
 Les deces ne sont jamais rapproches des patients du CHU.
 Test sur un echantillon : docker exec -e J18_ECHANTILLON=500000 ... (ecrit dans /silver/_test, pas dans /silver)."""
-import os, sys
+import os, sys, hashlib
 from pyspark.sql import SparkSession, functions as F
 
 sys.path.insert(0, "/jobs")
@@ -14,6 +14,21 @@ BRONZE = H + "/bronze/s4/deces"
 ECHANTILLON = int(os.environ.get("J18_ECHANTILLON", "0"))          # 0 = fichier entier
 SORTIE = H + ("/silver/_test/deces" if ECHANTILLON else "/silver/deces")
 REJETS = H + ("/silver/_test/_rejets_deces" if ECHANTILLON else "/silver/_rejets/deces")
+
+# cle_deces = HMAC-SHA256 avec la cle secrete HMAC_KEY_PATIENTS (.env) : sans la cle, personne ne peut la recalculer a
+# partir du fichier INSEE public. Fonctions natives de Spark (un UDF Python serait trop lent sur 25 M de lignes).
+KEY = os.environ["HMAC_KEY_PATIENTS"].encode()
+if len(KEY) > 64:
+    KEY = hashlib.sha256(KEY).digest()
+KEY = KEY + bytes(64 - len(KEY))
+IPAD = bytes(b ^ 0x36 for b in KEY).hex()
+OPAD = bytes(b ^ 0x5C for b in KEY).hex()
+
+
+def hmac_sha256(msg):
+    interne = F.sha2(F.concat(F.unhex(F.lit(IPAD)), F.encode(msg, "UTF-8")), 256)
+    return F.sha2(F.concat(F.unhex(F.lit(OPAD)), F.unhex(interne)), 256)
+
 
 spark = (SparkSession.builder.appName("J18_silver_deces")
          .config("spark.hadoop.dfs.replication", "1")
@@ -63,8 +78,8 @@ ref = table_departements(spark).filter("code_region_insee IS NOT NULL") \
         .select(F.col("code_departement").alias("dep"), F.col("code_region_insee").alias("region_ref"))
 
 t = (d.withColumn("code_lieu_deces", F.when(lieu.rlike("^([0-9]{5}|2[AB][0-9]{3})$"), lieu))
-      .withColumn("cle_deces", F.sha2(F.concat_ws("|", *[F.coalesce(F.col(c), F.lit("")) for c in ("deces", "lieu_brut", "acte", "naiss", "sexe_brut")]), 256))
-      .withColumn("sexe", F.when(F.col("sexe_brut") == "1", "M").when(F.col("sexe_brut") == "2", "F"))
+      .withColumn("cle_deces", hmac_sha256(F.concat_ws("|", *[F.coalesce(F.col(c), F.lit("")) for c in ("deces", "lieu_brut", "acte", "naiss", "sexe_brut")])))
+      .withColumn("sexe", F.when(F.col("sexe_brut") == "1", "M").when(F.col("sexe_brut") == "2", "F").otherwise("I"))
       .withColumn("date_deces", dd)
       .withColumn("annee_deces", F.year(dd))
       .withColumn("age_au_deces", F.when(age_brut.between(0, 125), age_brut))

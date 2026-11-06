@@ -34,6 +34,12 @@ print(f"SILVER activite identifiants distincts={ids.count()}")
 
 pro = spark.read.parquet(f"{H}/silver/professionnel").select(F.col("professionnel_pseudo").alias("pp")).distinct()
 etab = spark.read.parquet(f"{H}/silver/etablissement").select(F.col("identifiant_organisation").alias("eo")).distinct()
+if os.environ.get("J15_DIAG") == "1":      # preuve de la correction des zéros ADELI, hors chemin normal
+    brut = ids.select("id").withColumn("p_brut", pseudo("id"))
+    n_brut = brut.join(pro, brut.p_brut == pro.pp).count()
+    n_s1 = ids.join(pro, ids.professionnel_pseudo == pro.pp).count()
+    print(f"SILVER activite diagnostic ADELI identifiants_distincts={ids.count()} "
+          f"retrouves_sans_correction={n_brut} retrouves_apres_retrait_zero={n_s1}")
 t = (t.join(ids, "id", "left")
       .join(pro.withColumn("pro_ok", F.lit(1)), F.col("professionnel_pseudo") == F.col("pp"), "left")
       .join(F.broadcast(etab.withColumn("eo_ok", F.lit(1))), F.col("identifiant_organisation") == F.col("eo"), "left")
