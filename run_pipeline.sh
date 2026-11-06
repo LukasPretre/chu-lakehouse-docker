@@ -3,7 +3,7 @@
 #   1. Silver S1 (J10 à J12)            ./run_silver_s1.sh
 #   2. Silver S2 (J14 à J16)            ./run_silver_s2.sh   (ignoré si le Bronze S2 est absent)
 #   3. Référentiel géographique (J05)
-#   4. Dimensions du Gold (J20, J25, J23, J24) puis fait consultation (J30)
+#   4. Dimensions du Gold (J20, J25, J23, J24) puis faits (J30 à J33)
 #   5. Tests : test_silver.sh, test_gold.sh
 #   6. Rapports qualité (J40 S1 et S2) dans docs/qualite/   (avec QUALITE=1)
 #
@@ -72,12 +72,15 @@ if [ "$DEPUIS" -le 3 ]; then
 fi
 
 if [ "$DEPUIS" -le 4 ]; then
-  etape "4. Gold : dimensions puis fait consultation"
+  etape "4. Gold : dimensions puis faits"
   job j20_dimensions_generees.py '^GOLD dim_temps table='
   job j25_dim_patient.py         '^GOLD dim_patient (table=|cles_modifiees)'
   job j23_dim_professionnel.py   '^GOLD dim_professionnel (table=|cles_modifiees)'
   job j24_dim_diagnostic.py      '^GOLD dim_diagnostic (table=|cles_modifiees)'
   job j30_fait_consultation.py   '^GOLD(QC,(perte|inconnu|doublons)| fait_consultation)'
+  job j31_fait_hospitalisation.py '^GOLD(QC,(perte|inconnu|doublons)| fait_hospitalisation)'
+  job j32_fait_deces.py           '^GOLD(QC,(perte|inconnu|doublons)| fait_deces)'
+  job j33_fait_satisfaction.py    '^GOLD(QC,(perte|inconnu|doublons)| fait_satisfaction)'
 fi
 
 if [ "$DEPUIS" -le 5 ]; then
