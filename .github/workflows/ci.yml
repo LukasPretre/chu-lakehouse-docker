@@ -86,6 +86,7 @@ jobs:
         env:
           APPLIQUER_DDL: "1"
           LANCER_JOBS: "1"
+          COMPARER_PG: "1"
 
       - name: Tests Superset
         run: ./superset/test_superset.sh

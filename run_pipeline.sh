@@ -3,7 +3,7 @@
 #   1. Silver S1 (J10 à J12)            ./run_silver_s1.sh
 #   2. Silver S2 (J14 à J16)            ./run_silver_s2.sh   (ignoré si le Bronze S2 est absent)
 #   3. Référentiel géographique (J05)
-#   4. Dimensions du Gold (J20, J25, J23, J24) puis faits (J30 à J33)
+#   4. Dimensions du Gold (J20, J21, J22, J25, J23, J24), faits (J30 à J33), copie vers PostgreSQL (J34)
 #   5. Tests : test_silver.sh, test_gold.sh
 #   6. Rapports qualité (J40 S1 et S2) dans docs/qualite/   (avec QUALITE=1)
 #
@@ -35,11 +35,22 @@ duree() {
   else echo "[..] $1 : ${s} s"; fi
 }
 
+# Jobs qui lisent ou écrivent PostgreSQL : pilote JDBC copié dans le conteneur, identifiants
+# PostgreSQL passés par l'environnement (jamais sur la ligne de commande).
+JOBS_PG=" j21_dim_region.py j22_dim_etablissement.py j34_copie_gold_pg.py "
+PILOTE_JDBC=drivers/postgresql-42.7.3.jar
+
 job() {
   local fichier=$1 motif=$2 rc=0 out t0
   t0=$(date +%s)
   echo "== $fichier"
-  out=$(docker exec "$SPARK" /opt/spark/bin/spark-submit --master "$MASTER" "/jobs/$fichier" 2>&1) || rc=$?
+  if [[ $JOBS_PG == *" $fichier "* ]]; then
+    docker cp "$PILOTE_JDBC" "$SPARK:/tmp/postgresql.jar" >/dev/null || echec "pilote JDBC $PILOTE_JDBC introuvable (./bootstrap.sh)"
+    out=$(docker exec -e PG_USER -e PG_PASSWORD "$SPARK" /opt/spark/bin/spark-submit --master "$MASTER" \
+          --jars /tmp/postgresql.jar "/jobs/$fichier" 2>&1) || rc=$?
+  else
+    out=$(docker exec "$SPARK" /opt/spark/bin/spark-submit --master "$MASTER" "/jobs/$fichier" 2>&1) || rc=$?
+  fi
   grep -E "$motif" <<<"$out" | grep -v -E '^GOLDQC,lignes_annee_' || true
   if [ "$rc" -ne 0 ] || ! grep -q -E "$motif" <<<"$out" || grep -q -E 'ERREUR|ECART' <<<"$out"; then
     echo "[ECHEC] $fichier (code $rc), fin de la sortie :" >&2
@@ -50,6 +61,7 @@ job() {
 }
 
 [ -f .env ] || echec ".env introuvable (lancer ./bootstrap.sh)"
+set -a; . ./.env; set +a   # PG_USER et PG_PASSWORD pour J21, J22 et J34
 docker inspect -f '{{.State.Running}}' "$SPARK" 2>/dev/null | grep -q true || echec "conteneur $SPARK arrêté (docker compose up -d)"
 
 if [ "$DEPUIS" -le 1 ]; then
@@ -72,8 +84,10 @@ if [ "$DEPUIS" -le 3 ]; then
 fi
 
 if [ "$DEPUIS" -le 4 ]; then
-  etape "4. Gold : dimensions puis faits"
+  etape "4. Gold : dimensions, faits, copie vers PostgreSQL"
   job j20_dimensions_generees.py '^GOLD dim_temps table='
+  job j21_dim_region.py          '^GOLD dim_region table='
+  job j22_dim_etablissement.py   '^GOLD dim_etablissement (table=|ignoré)'
   job j25_dim_patient.py         '^GOLD dim_patient (table=|cles_modifiees)'
   job j23_dim_professionnel.py   '^GOLD dim_professionnel (table=|cles_modifiees)'
   job j24_dim_diagnostic.py      '^GOLD dim_diagnostic (table=|cles_modifiees)'
@@ -81,6 +95,7 @@ if [ "$DEPUIS" -le 4 ]; then
   job j31_fait_hospitalisation.py '^GOLD(QC,(perte|inconnu|doublons)| fait_hospitalisation)'
   job j32_fait_deces.py           '^GOLD(QC,(perte|inconnu|doublons)| fait_deces)'
   job j33_fait_satisfaction.py    '^GOLD(QC,(perte|inconnu|doublons)| fait_satisfaction)'
+  job j34_copie_gold_pg.py       '^GOLD J34 '
 fi
 
 if [ "$DEPUIS" -le 5 ]; then

@@ -83,6 +83,7 @@ services:
   namenode:
     image: apache/hadoop:3.3.6
     container_name: chu_namenode
+    restart: always
     hostname: namenode
     networks:
       - chu_network
@@ -104,6 +105,7 @@ services:
   datanode:
       image: apache/hadoop:3.3.6
       container_name: chu_datanode
+      restart: always
       hostname: datanode
       networks:
         - chu_network

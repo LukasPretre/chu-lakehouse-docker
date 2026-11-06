@@ -24,8 +24,14 @@ SPARK=${SPARK_MASTER_CONTAINER:-chu_spark_master}
 MASTER=${SPARK_MASTER_URL:-spark://spark-master:7077}
 GOLD_DB=${GOLD_DB:-chu_gold}
 
-# Jobs Gold lancés avec LANCER_JOBS=1, dans l'ordre. Ajouter les suivants ici (J23, J24, J25...).
-JOBS_GOLD=(j20_dimensions_generees.py j25_dim_patient.py j23_dim_professionnel.py j24_dim_diagnostic.py j30_fait_consultation.py j31_fait_hospitalisation.py j32_fait_deces.py j33_fait_satisfaction.py)
+# Jobs Gold lancés avec LANCER_JOBS=1, dans l'ordre : dimensions, faits, puis J34 (copie vers
+# PostgreSQL) en dernier.
+JOBS_GOLD=(j20_dimensions_generees.py j21_dim_region.py j22_dim_etablissement.py j25_dim_patient.py
+           j23_dim_professionnel.py j24_dim_diagnostic.py j30_fait_consultation.py
+           j31_fait_hospitalisation.py j32_fait_deces.py j33_fait_satisfaction.py j34_copie_gold_pg.py)
+# Jobs qui lisent ou écrivent PostgreSQL : pilote JDBC et identifiants PostgreSQL en plus.
+JOBS_PG=" j21_dim_region.py j22_dim_etablissement.py j34_copie_gold_pg.py "
+PILOTE_JDBC=${PILOTE_JDBC:-drivers/postgresql-42.7.3.jar}
 
 TABLES="dim_temps dim_region dim_etablissement dim_patient dim_professionnel dim_diagnostic
         fait_consultation fait_hospitalisation fait_deces fait_satisfaction"
@@ -141,8 +147,16 @@ if metastore_ok; then ok "Metastore Hive joignable (hive-metastore:9083)"; else 
 if [ "${LANCER_JOBS:-0}" = "1" ]; then
   for job in "${JOBS_GOLD[@]}"; do
     if [ ! -f "jobs/$job" ]; then skip "jobs/$job absent de cette branche"; continue; fi
-    sortie=$(docker exec -e GOLD_DB="$GOLD_DB" "$SPARK" \
-             /opt/spark/bin/spark-submit --master "$MASTER" "/jobs/$job" 2>&1)
+    if [[ $JOBS_PG == *" $job "* ]]; then
+      if ! docker cp "$PILOTE_JDBC" "$SPARK:/tmp/postgresql.jar" >/dev/null 2>&1; then
+        ko "$job : pilote JDBC $PILOTE_JDBC introuvable (lancer ./bootstrap.sh)"; continue
+      fi
+      sortie=$(docker exec -e GOLD_DB="$GOLD_DB" -e PG_USER -e PG_PASSWORD "$SPARK" \
+               /opt/spark/bin/spark-submit --master "$MASTER" --jars /tmp/postgresql.jar "/jobs/$job" 2>&1)
+    else
+      sortie=$(docker exec -e GOLD_DB="$GOLD_DB" "$SPARK" \
+               /opt/spark/bin/spark-submit --master "$MASTER" "/jobs/$job" 2>&1)
+    fi
     rc=$?
     if [ "$rc" -eq 0 ]; then ok "$job terminé"
     else ko "$job en échec (code $rc), fin de la sortie :"; grep -E '^GOLD|Error|Exception' <<<"$sortie" | tail -15 | sed 's/^/          /'; fi
