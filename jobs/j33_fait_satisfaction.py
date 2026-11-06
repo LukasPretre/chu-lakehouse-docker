@@ -98,7 +98,12 @@ else:
     stop(f"J33_MODE inconnu : {MODE} (normal ou test)")
 
 # ---------------------------------------------------------------- Silver
-silver = spark.read.parquet(f"{SILVER}/esatis")
+try:
+    silver = spark.read.parquet(f"{SILVER}/esatis")
+except Exception:
+    print("GOLD fait_satisfaction ignoré : silver/esatis absent (lancer J17)", flush=True)
+    spark.stop()
+    sys.exit(0)
 attendues = ["annee", "type_enquete", "finess_geo", "classement", "evolution", "nb_reponses"] + MESURES
 manquantes = [c for c in attendues if c not in silver.columns]
 if manquantes:

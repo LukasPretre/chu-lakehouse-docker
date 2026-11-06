@@ -106,7 +106,12 @@ dim_patient = dim_patient.filter("id_patient <> -1")
 dim_diag = dim_diag.filter("id_diagnostic <> -1")
 
 # ---------------------------------------------------------------- Silver
-silver = spark.read.parquet(f"{SILVER}/hospitalisation")
+try:
+    silver = spark.read.parquet(f"{SILVER}/hospitalisation")
+except Exception:
+    print("GOLD fait_hospitalisation ignoré : silver/hospitalisation absent (lancer J16)", flush=True)
+    spark.stop()
+    sys.exit(0)
 base = silver.select(
     F.col("num_hospitalisation").alias("id_hospitalisation"),
     "patient_pseudo", "identifiant_organisation", "code_diagnostic",
