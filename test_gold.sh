@@ -25,7 +25,7 @@ MASTER=${SPARK_MASTER_URL:-spark://spark-master:7077}
 GOLD_DB=${GOLD_DB:-chu_gold}
 
 # Jobs Gold lancés avec LANCER_JOBS=1, dans l'ordre. Ajouter les suivants ici (J23, J24, J25...).
-JOBS_GOLD=(j20_dimensions_generees.py j25_dim_patient.py j23_dim_professionnel.py j24_dim_diagnostic.py j30_fait_consultation.py)
+JOBS_GOLD=(j20_dimensions_generees.py j25_dim_patient.py j23_dim_professionnel.py j24_dim_diagnostic.py j30_fait_consultation.py j31_fait_hospitalisation.py)
 
 TABLES="dim_temps dim_region dim_etablissement dim_patient dim_professionnel dim_diagnostic
         fait_consultation fait_hospitalisation fait_deces fait_satisfaction"
