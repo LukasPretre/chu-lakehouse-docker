@@ -25,9 +25,10 @@ MASTER=${SPARK_MASTER_URL:-spark://spark-master:7077}
 GOLD_DB=${GOLD_DB:-chu_gold}
 
 # Jobs Gold lancés avec LANCER_JOBS=1, dans l'ordre : dimensions, faits, puis J34 (copie vers
-# PostgreSQL) en dernier. Ajouter les faits suivants (J31, J32, J33) avant J34.
+# PostgreSQL) en dernier.
 JOBS_GOLD=(j20_dimensions_generees.py j21_dim_region.py j22_dim_etablissement.py j25_dim_patient.py
-           j23_dim_professionnel.py j24_dim_diagnostic.py j30_fait_consultation.py j34_copie_gold_pg.py)
+           j23_dim_professionnel.py j24_dim_diagnostic.py j30_fait_consultation.py
+           j31_fait_hospitalisation.py j32_fait_deces.py j33_fait_satisfaction.py j34_copie_gold_pg.py)
 # Jobs qui lisent ou écrivent PostgreSQL : pilote JDBC et identifiants PostgreSQL en plus.
 JOBS_PG=" j21_dim_region.py j22_dim_etablissement.py j34_copie_gold_pg.py "
 PILOTE_JDBC=${PILOTE_JDBC:-drivers/postgresql-42.7.3.jar}
