@@ -51,7 +51,7 @@ TRAVAIL = f"{P.SCHEMA_TRAVAIL}.stg_etablissement"
 SUIVIS = ["finess_site", "finess_juridique", "siret_site", "siren_site", "raison_sociale", "enseigne",
           "categorie", "code_commune", "commune", "code_postal", "code_departement", "id_region"]
 # Tailles des colonnes texte de sql/gold_ddl.sql : au-delà, PostgreSQL refuserait la ligne.
-LONGUEURS = {"identifiant_organisation": 30, "raison_sociale": 150, "enseigne": 150, "categorie": 30,
+LONGUEURS = {"identifiant_organisation": 30, "raison_sociale": 200, "enseigne": 150, "categorie": 30,
              "code_commune": 30, "commune": 60, "code_postal": 30, "code_departement": 30}
 COLONNES_SILVER = ["identifiant_organisation", "finess_geo", "finess_juridique", "siret_site", "siren_site",
                    "raison_sociale", "enseigne", "categorie", "code_commune", "commune", "code_postal",
@@ -73,7 +73,10 @@ def format_ou_nul(colonne, motif):
 spark = G.session("J22_dim_etablissement")
 try:
     silver = spark.read.parquet(f"{G.SILVER}/etablissement")
-except Exception:
+except Exception as erreur:
+    if "PATH_NOT_FOUND" not in str(erreur):   # HDFS arrêté, namenode introuvable... : vraie erreur
+        raise SystemExit("GOLD ERREUR lecture de silver/etablissement impossible (HDFS arrêté ?) : "
+                         + str(erreur).splitlines()[0][:300])
     print("GOLD dim_etablissement ignoré : silver/etablissement absent (lancer J14)", flush=True)
     spark.stop()
     sys.exit(0)

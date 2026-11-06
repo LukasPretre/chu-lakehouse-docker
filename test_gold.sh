@@ -147,7 +147,7 @@ if metastore_ok; then ok "Metastore Hive joignable (hive-metastore:9083)"; else 
 if [ "${LANCER_JOBS:-0}" = "1" ]; then
   for job in "${JOBS_GOLD[@]}"; do
     if [ ! -f "jobs/$job" ]; then skip "jobs/$job absent de cette branche"; continue; fi
-            if [[ $JOBS_PG == *" $job "* ]]; then
+    if [[ $JOBS_PG == *" $job "* ]]; then
       if ! docker cp "$PILOTE_JDBC" "$SPARK:/tmp/postgresql.jar" >/dev/null 2>&1; then
         ko "$job : pilote JDBC $PILOTE_JDBC introuvable (lancer ./bootstrap.sh)"; continue
       fi

@@ -86,7 +86,7 @@ CREATE TABLE dim_etablissement (
     finess_juridique          CHAR(9),
     siret_site                CHAR(14),
     siren_site                CHAR(9),
-    raison_sociale            VARCHAR(150)  NOT NULL,
+    raison_sociale            VARCHAR(200)  NOT NULL,
     enseigne                  VARCHAR(150),
     categorie                 VARCHAR(30),
     code_commune              VARCHAR(30),
