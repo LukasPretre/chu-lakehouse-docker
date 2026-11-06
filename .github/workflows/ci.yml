@@ -69,6 +69,7 @@ jobs:
         env:
           APPLIQUER_DDL: "1"
           LANCER_JOBS: "1"
+          COMPARER_PG: "1"
 
       - name: Journaux des conteneurs en cas d'échec
         if: failure()
