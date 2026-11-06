@@ -98,10 +98,13 @@ else
 fi
 ok ".env complet (les mots de passe sont dans .env, à ne jamais commiter)"
 
+./superset/init_superset.sh --env >/dev/null || fail "variables Superset non ajoutées à .env"
+ok "variables Superset présentes dans .env"
+
 # ---------------------------------------------------------------- 2. Dossiers et driver
 etape "2. Dossiers et driver JDBC"
-mkdir -p data drivers jobs hadoop-conf nifi-flows
-chmod 777 data 2>/dev/null || avert "chmod 777 data impossible (dossier créé par root ? sudo chown -R \$USER data)"
+mkdir -p data data/depot_s2 drivers jobs hadoop-conf nifi-flows
+chmod 777 data data/depot_s2 2>/dev/null || avert "chmod 777 data impossible (dossier créé par root ? sudo chown -R \$USER data)"
 if [ ! -s "$JDBC_JAR" ]; then
   info "téléchargement du driver PostgreSQL ${JDBC_VERSION}"
   curl -fL --retry 3 -o "$JDBC_JAR" "$JDBC_URL" >/dev/null 2>&1 || fail "téléchargement du driver impossible ($JDBC_URL)"
@@ -178,6 +181,10 @@ docker exec "$NN_CONTAINER" hdfs dfs -mkdir -p /bronze /silver /warehouse >/dev/
 docker exec "$NN_CONTAINER" hdfs dfs -chmod -R 777 /bronze /silver /warehouse >/dev/null
 ok "dossiers HDFS /bronze /silver /warehouse"
 
+# ---------------------------------------------------------------- 5 bis. Superset
+etape "5 bis. Superset (visualisation)"
+./superset/init_superset.sh | sed "s/^/  /" || avert "Superset non initialisé : relancer ./superset/init_superset.sh"
+
 # ---------------------------------------------------------------- 6. Données sources
 etape "6. Données sources (dump PostgreSQL)"
 nb=$(docker exec "$PG_CONTAINER" psql -U "$PG_USER" -d chu_s1_db -tAc 'SELECT count(*) FROM public."Consultation"' 2>/dev/null || true)
@@ -203,10 +210,15 @@ cat <<EOF
     NiFi        https://${HOST_IP}:8443   (utilisateur : ${NIFI_USER}, mot de passe dans .env ; démarrage : 1 à 3 minutes)
     HDFS        http://${HOST_IP}:9870
     Spark       http://${HOST_IP}:8080
+    Superset    http://${HOST_IP}:8088   (utilisateur : admin, mot de passe : SUPERSET_ADMIN_PASSWORD dans .env)
 
-  1. NiFi : importer nifi-flows/J01.json (icône « Process Group », puis Upload),
+  1. NiFi, source S1 : importer nifi-flows/J01.json (icône « Process Group », puis Upload),
      ouvrir le service DBCPConnectionPool, ressaisir PG_PASSWORD, l'activer,
      puis faire « Run Once » sur chaque GenerateFlowFile.
-  2. Silver de la source S1 : ./run_silver_s1.sh
-  3. Contrôle de la pile : SMOKE_COUNTS=1 ./fichier_test.sh
+  2. NiFi, source S2 : déposer les 4 CSV dans data/depot_s2/ (etablissement_sante.csv,
+     professionnel_sante.csv, activite_professionnel_sante.csv, Hospitalisations.csv),
+     importer nifi-flows/J02.json, activer ses services, puis Start ; Stop quand les files sont vides.
+  3. Toute la chaîne (Silver S1 et S2, référentiel, Gold, tests) : ./run_pipeline.sh
+     (ou étape par étape : ./run_silver_s1.sh, ./run_silver_s2.sh, ./test_silver.sh, ./test_gold.sh)
+  4. Contrôle de la pile : SMOKE_COUNTS=1 ./fichier_test.sh
 EOF

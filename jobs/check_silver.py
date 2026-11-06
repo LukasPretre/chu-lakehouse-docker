@@ -23,6 +23,9 @@ from pyspark.sql import SparkSession, functions as F
 H = os.environ.get("HDFS_BASE", "hdfs://namenode:8020")
 STRICT = os.environ.get("STRICT", "0") == "1"
 HMAC = "^[0-9a-f]{64}$"
+# Colonnes de clé qui peuvent être vides : organisation absente pour les libéraux,
+# mode d'exercice non renseigné (J15). L'unicité de la clé complète reste contrôlée.
+CLE_PEUT_ETRE_VIDE = {"activite_professionnel": {"identifiant_organisation", "mode_exercice"}}
 
 # entité -> clé naturelle, colonnes pseudonymisées, colonnes interdites (comparées sans casse)
 ENTITES = {
@@ -38,7 +41,8 @@ ENTITES = {
                       ["id_patient", "id_prof_sante"]),
     # Sources fichiers (noms du Livrable 1, annexe B.2), contrôlées dès qu'elles existent
     "etablissement":          (["identifiant_organisation"], [], []),
-    "activite_professionnel": (["identifiant_pseudo", "identifiant_organisation"], ["identifiant_pseudo"],
+    "activite_professionnel": (["professionnel_pseudo", "identifiant_organisation", "mode_exercice"],
+                               ["professionnel_pseudo"],
                                ["identifiant", "nom", "prenom"]),
     "hospitalisation":        (["num_hospitalisation"], ["patient_pseudo"], ["id_patient"]),
     "esatis":                 (["annee", "type_enquete", "finess_geo"], [], []),
@@ -95,10 +99,11 @@ for entite, (cle, pseudos, interdites) in ENTITES.items():
         resultat(False, f"{entite} : colonnes du Livrable 1 absentes : {', '.join(manquantes)}")
         continue
 
-    nulles = df.filter(" OR ".join(f"{c} IS NULL" for c in cle)).count()
+    obligatoires = [c for c in cle if c not in CLE_PEUT_ETRE_VIDE.get(entite, set())]
+    nulles = df.filter(" OR ".join(f"{c} IS NULL" for c in obligatoires)).count() if obligatoires else 0
     doublons = n - df.select(*cle).distinct().count()
     resultat(nulles == 0 and doublons == 0,
-             f"{entite} : clé {' + '.join(cle)} non nulle et unique (nulles={nulles}, doublons={doublons})")
+             f"{entite} : clé {' + '.join(cle)} unique, {' + '.join(obligatoires)} non nulle(s) (nulles={nulles}, doublons={doublons})")
 
     for p in pseudos:
         mauvais = df.filter(F.col(p).isNotNull() & ~F.col(p).rlike(HMAC)).count()
