@@ -4,7 +4,8 @@
 # Usage (racine du dépôt) :
 #   ./test_gold.sh                    contrôles seuls, ne modifie rien
 #   LANCER_JOBS=1 ./test_gold.sh      lance d'abord les jobs Gold présents dans jobs/ (liste JOBS_GOLD)
-#   APPLIQUER_DDL=1 ./test_gold.sh    rejoue d'abord sql/gold_ddl.sql : EFFACE le Gold PostgreSQL
+#   APPLIQUER_DDL=1 ./test_gold.sh    rejoue d'abord sql/gold_ddl.sql : EFFACE le Gold PostgreSQL,
+#                                     puis sql/gold_index_partition.sql (partitions et index)
 # Options :
 #   STRICT=1        une table Gold absente compte comme un échec
 #   COMPARER_PG=1   compare les volumes Hive et PostgreSQL (QC10, une fois J34 en place)
@@ -98,6 +99,8 @@ if [ "${APPLIQUER_DDL:-0}" = "1" ]; then
   echo "== 0. Application de sql/gold_ddl.sql (le Gold PostgreSQL est recréé)"
   if err=$(psql_gold < sql/gold_ddl.sql 2>&1); then ok "sql/gold_ddl.sql appliqué"
   else ko "sql/gold_ddl.sql en erreur : $(grep -m1 ERROR <<<"$err")"; fi
+  if err=$(psql_gold < sql/gold_index_partition.sql 2>&1); then ok "sql/gold_index_partition.sql appliqué"
+  else ko "sql/gold_index_partition.sql en erreur : $(grep -m1 ERROR <<<"$err")"; fi
 fi
 
 # ---------- 1. STRUCTURE POSTGRESQL ----------
@@ -112,6 +115,25 @@ for d in dim_temps:id_date dim_region:id_region dim_etablissement:id_etablisseme
   egal "ligne -1 « Inconnu » dans ${d%%:*}" 1 "SELECT count(*) FROM ${d%%:*} WHERE ${d#*:} = -1"
 done
 egal "dim_region : 18 régions + Étranger + Inconnu" 20 "SELECT count(*) FROM dim_region"
+
+# Partitionnement et index (sql/gold_index_partition.sql)
+if [ "$(valeur "SELECT relkind FROM pg_class WHERE oid = 'public.fait_consultation'::regclass")" = "p" ]; then
+  egal "fait_consultation partitionnée par id_date : 2015 à 2023 + défaut (10 partitions)" 10 \
+    "SELECT count(*) FROM pg_inherits WHERE inhparent = 'public.fait_consultation'::regclass"
+  egal "fait_consultation : clé primaire (id_consultation, id_date)" "id_consultation,id_date" \
+    "SELECT string_agg(a.attname, ',' ORDER BY k.n) FROM pg_index i
+       CROSS JOIN LATERAL unnest(i.indkey) WITH ORDINALITY AS k(attnum, n)
+       JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = k.attnum
+      WHERE i.indrelid = 'public.fait_consultation'::regclass AND i.indisprimary"
+  egal "fait_consultation : index sur id_patient" 1 \
+    "SELECT count(*) FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'idx_consultation_patient'"
+  egal "fait_consultation : id_consultation unique (la clé primaire ne le garantit plus seule)" 0 \
+    "SELECT count(*) - count(DISTINCT id_consultation) FROM fait_consultation"
+  egal "fait_consultation : partition par défaut sans date connue (sinon ajouter une année)" 0 \
+    "SELECT count(*) FROM gold_partitions.fait_consultation_defaut WHERE id_date <> -1"
+else
+  skip "fait_consultation pas encore partitionnée : appliquer sql/gold_index_partition.sql"
+fi
 
 # ---------- 2. CONTRAINTES POSTGRESQL ----------
 echo "== 2. PostgreSQL $PG_DB : contraintes (transactions annulées, rien n'est écrit)"
