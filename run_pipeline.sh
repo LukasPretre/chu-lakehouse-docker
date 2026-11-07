@@ -2,6 +2,8 @@
 # Chaîne complète du lakehouse, dans l'ordre, puis contrôles :
 #   1. Silver S1 (J10 à J12)            ./run_silver_s1.sh
 #   2. Silver S2 (J14 à J16)            ./run_silver_s2.sh   (ignoré si le Bronze S2 est absent)
+#      puis Silver S3 e-Satis (J17) et S4 décès (J18), chacun ignoré si son Bronze est absent
+#      (J18 : environ 6 min pour 25 millions de lignes, au-dessus de l'objectif de 2 min)
 #   3. Référentiel géographique (J05)
 #   4. Dimensions du Gold (J20, J21, J22, J25, J23, J24), faits (J30 à J33), copie vers PostgreSQL (J34)
 #   5. Tests : test_silver.sh, test_gold.sh
@@ -39,6 +41,8 @@ duree() {
 # PostgreSQL passés par l'environnement (jamais sur la ligne de commande).
 JOBS_PG=" j21_dim_region.py j22_dim_etablissement.py j34_copie_gold_pg.py "
 PILOTE_JDBC=drivers/postgresql-42.7.3.jar
+# Job qui pseudonymise avec la clé HMAC des patients (transmise par l'environnement).
+JOBS_CLE=" j18_silver_deces.py "
 
 job() {
   local fichier=$1 motif=$2 rc=0 out t0
@@ -48,6 +52,9 @@ job() {
     docker cp "$PILOTE_JDBC" "$SPARK:/tmp/postgresql.jar" >/dev/null || echec "pilote JDBC $PILOTE_JDBC introuvable (./bootstrap.sh)"
     out=$(docker exec -e PG_USER -e PG_PASSWORD "$SPARK" /opt/spark/bin/spark-submit --master "$MASTER" \
           --jars /tmp/postgresql.jar "/jobs/$fichier" 2>&1) || rc=$?
+  elif [[ $JOBS_CLE == *" $fichier "* ]]; then
+    [ -n "${HMAC_KEY_PATIENTS:-}" ] || echec "HMAC_KEY_PATIENTS absente de .env"
+    out=$(docker exec -e HMAC_KEY_PATIENTS "$SPARK" /opt/spark/bin/spark-submit --master "$MASTER" "/jobs/$fichier" 2>&1) || rc=$?
   else
     out=$(docker exec "$SPARK" /opt/spark/bin/spark-submit --master "$MASTER" "/jobs/$fichier" 2>&1) || rc=$?
   fi
@@ -75,6 +82,20 @@ if [ "$DEPUIS" -le 2 ]; then
     ./run_silver_s2.sh
   else
     echo "[..] Bronze S2 absent (NiFi J02 pas encore lancé) : étape ignorée"
+  fi
+fi
+
+if [ "$DEPUIS" -le 2 ]; then
+  etape "2b. Silver S3 e-Satis (J17) et S4 décès (J18)"
+  if docker exec chu_namenode hdfs dfs -test -d /bronze/s3/esatis 2>/dev/null; then
+    job j17_silver_esatis.py '^SILVER esatis bronze='
+  else
+    echo "[..] Bronze S3 absent (NiFi J03 pas encore lancé) : J17 ignoré"
+  fi
+  if docker exec chu_namenode hdfs dfs -test -d /bronze/s4/deces 2>/dev/null; then
+    job j18_silver_deces.py '^SILVER deces bronze='
+  else
+    echo "[..] Bronze S4 absent (NiFi J04 pas encore lancé) : J18 ignoré"
   fi
 fi
 
