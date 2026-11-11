@@ -95,7 +95,9 @@ elif MODE != "test":
 # ---------------------------------------------------------------- Silver (plage d'annees)
 try:
     silver = spark.read.parquet(f"{SILVER}/deces")
-except Exception:
+except Exception as erreur:
+    if "PATH_NOT_FOUND" not in str(erreur):   # HDFS arrêté, namenode introuvable... : vraie erreur
+        raise SystemExit(f"GOLD ERREUR lecture du Silver impossible (HDFS arrêté ?) : {str(erreur).splitlines()[0][:300]}")
     print("GOLD fait_deces ignoré : silver/deces absent (lancer J18)", flush=True)
     spark.stop()
     sys.exit(0)

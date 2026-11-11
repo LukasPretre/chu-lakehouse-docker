@@ -108,7 +108,9 @@ dim_diag = dim_diag.filter("id_diagnostic <> -1")
 # ---------------------------------------------------------------- Silver
 try:
     silver = spark.read.parquet(f"{SILVER}/hospitalisation")
-except Exception:
+except Exception as erreur:
+    if "PATH_NOT_FOUND" not in str(erreur):   # HDFS arrêté, namenode introuvable... : vraie erreur
+        raise SystemExit(f"GOLD ERREUR lecture du Silver impossible (HDFS arrêté ?) : {str(erreur).splitlines()[0][:300]}")
     print("GOLD fait_hospitalisation ignoré : silver/hospitalisation absent (lancer J16)", flush=True)
     spark.stop()
     sys.exit(0)
