@@ -15,8 +15,8 @@
 --   - les 18 régions INSEE + « Étranger » : référentiel figé, nécessaire avant le SCD2
 --     de dim_etablissement (J22), qui est tenu dans PostgreSQL.
 -- Hors de ce script, pour pouvoir mesurer l'avant/après du benchmark :
---   - index secondaires : sql/gold_index.sql
---   - partitionnement des faits : sql/gold_partition.sql
+--   - partitionnement de fait_consultation et index secondaires : sql/gold_index_partition.sql,
+--     à lancer après ce script (le rejouer remet fait_consultation en table simple).
 --
 -- Choix faits là où le livrable 1 se contredit (à reporter dans le rapport) :
 --   - pas de DIM_DEMOGRAPHIE : sexe et tranche_age restent dans fait_deces (annexe A) ;

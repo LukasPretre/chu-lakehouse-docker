@@ -13,6 +13,7 @@ services:
   postgres:
     image: postgres:15-alpine
     container_name: chu_postgres
+    shm_size: "512mb"   # requêtes parallèles de Superset : sinon « could not resize shared memory segment »
     restart: always
     environment:
       POSTGRES_USER: "${PG_USER}"
